@@ -1,0 +1,30 @@
+{
+  "name": "portal-manutencao",
+  "version": "4.0.0",
+  "description": "Portal de Manutenção de Condomínio | Full-Stack",
+  "private": true,
+  "scripts": {
+    "dev":         "concurrently -n \"API,WEB\" -c \"cyan.bold,magenta.bold\" --kill-others-on-fail \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "build":       "npm run build --prefix frontend",
+    "start":       "npm run start --prefix backend",
+    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend",
+
+    "migrate":     "node backend/scripts/migrate.js",
+    "seed":        "node backend/scripts/seed.js",
+    "db:setup":    "npm run migrate && npm run seed",
+
+    "docker:dev":      "docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build",
+    "docker:monolith": "docker compose --profile monolith up --build",
+    "docker:split":    "docker compose --profile split up --build",
+    "docker:down":     "docker compose down",
+    "docker:reset":    "docker compose down -v && docker compose --profile monolith up --build",
+    "docker:logs":     "docker compose logs -f",
+    "docker:mysql":    "docker compose exec mysql mysql -uroot -proot123 portal_manutencao"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

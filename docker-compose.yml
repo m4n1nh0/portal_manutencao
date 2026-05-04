@@ -1,0 +1,107 @@
+services:
+
+  # ─── MySQL 8 ──────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE:      portal_manutencao
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot123 --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ─── Monolito (API + React no mesmo container) ────────────────
+  portal-monolith:
+    profiles: ["monolith"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV:        production
+      PORT:            3001
+      SERVE_CLIENT:    "true"
+      CLIENT_DIST_DIR: /app/client/dist
+      DB_HOST:         mysql
+      DB_PORT:         3306
+      DB_USER:         root
+      DB_PASSWORD:     root123
+      DB_NAME:         portal_manutencao
+      JWT_SECRET:      dev_monolith_change_me_64_chars_minimum_portal_local_secret
+      CLIENT_URL:      http://localhost:3001
+      APP_URL:         http://localhost:3001
+      RUN_MIGRATIONS:  "true"
+      RUN_SEEDS:       "false"
+      STORAGE_DRIVER:  local
+      UPLOAD_DIR:      /app/uploads
+      LOG_DIR:         /app/logs
+      SMTP_HOST:       ""
+      SMTP_USER:       ""
+      SMTP_PASS:       ""
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+
+  # ─── API separada ─────────────────────────────────────────────
+  api:
+    profiles: ["split"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      NODE_ENV:       production
+      PORT:           3001
+      SERVE_CLIENT:   "false"
+      DB_HOST:        mysql
+      DB_PORT:        3306
+      DB_USER:        root
+      DB_PASSWORD:    root123
+      DB_NAME:        portal_manutencao
+      JWT_SECRET:     dev_split_change_me_64_chars_minimum_portal_local_secret
+      CLIENT_URL:     http://localhost:8080
+      APP_URL:        http://localhost:3001
+      RUN_MIGRATIONS: "true"
+      RUN_SEEDS:      "false"
+      STORAGE_DRIVER: local
+      UPLOAD_DIR:     /app/uploads
+      LOG_DIR:        /app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+
+  # ─── Frontend separado (Caddy) ────────────────────────────────
+  web:
+    profiles: ["split"]
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:3001/api
+    environment:
+      PORT: 8080
+    depends_on:
+      - api
+    ports:
+      - "8080:8080"
+
+volumes:
+  mysql_data:

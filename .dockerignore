@@ -1,0 +1,40 @@
+# Node modules (reinstalados no build)
+**/node_modules
+**/.npm
+
+# Builds locais
+frontend/dist
+backend/public
+
+# Variáveis de ambiente
+.env
+.env.*
+!.env.docker
+
+# Git
+.git
+.gitignore
+
+# Uploads e logs locais
+uploads/
+logs/
+
+# Docs e CI
+*.md
+.github/
+docs/
+
+# Ferramentas de dev
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Testes
+**/__tests__
+**/*.test.js
+coverage/
+
+# Docker local (não necessário dentro do container)
+docker-compose.dev.yml
