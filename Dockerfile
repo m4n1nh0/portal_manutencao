@@ -17,7 +17,7 @@ FROM node:20-alpine AS client-build
 WORKDIR /app
 
 COPY frontend/package*.json frontend/
-RUN npm ci --prefix frontend
+RUN npm install --prefix frontend
 
 # VITE_API_URL=/api → proxy relativo (monolito: API e Web no mesmo servidor)
 ARG VITE_API_URL=/api
