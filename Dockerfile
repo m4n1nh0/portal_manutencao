@@ -48,7 +48,7 @@ COPY backend/src  backend/src
 COPY backend/scripts backend/scripts
 
 # Frontend buildado (renomeia para client/dist como no SEP)
-COPY --from=client-build /app/frontend/dist client/dist
+COPY --from=client-build /app/backend/public client/dist
 
 # Database (migrations e schema)
 COPY database database
