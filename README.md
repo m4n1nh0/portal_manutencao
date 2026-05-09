@@ -21,6 +21,9 @@ sindico / Sind@123
 morador / Mor@123
 campo / Campo@123
 
+Os dados demonstrativos ficam em `database/seeds/*.sql`.
+As migrations em `database/migrations/*.sql` devem conter apenas estrutura/evolucao do banco.
+
 ## Build para producao
 npm run build  # gera backend/public/
 npm start      # serve tudo em :3001

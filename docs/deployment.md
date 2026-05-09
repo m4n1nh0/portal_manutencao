@@ -93,6 +93,16 @@ VITE_API_URL=https://sua-api.up.railway.app/api
 6. Se voce realmente quiser criar os usuarios de exemplo no primeiro deploy,
    defina `RUN_SEEDS=true` e `ALLOW_DEV_SEEDS=true`, depois volte ambos para `false`.
 
+## Migrations e seeds
+
+- `database/migrations/*.sql`: somente estrutura e evolucao do banco.
+- `database/seeds/*.sql`: dados demonstrativos e cadastros operacionais de desenvolvimento.
+- `backend/scripts/seed.js`: aplica os arquivos de seed em ordem alfabetica e cria os usuarios de exemplo com bcrypt.
+
+Os seeds atuais incluem rotinas diarias, semanais, mensais e anuais com status mistos
+(`Pendente`, `Em Andamento`, `Em Revisao` e `Concluido`) para facilitar a validacao do dashboard,
+kanban e telas por perfil.
+
 ## Deploy no Railway — Separado
 
 Crie dois serviços no mesmo projeto:

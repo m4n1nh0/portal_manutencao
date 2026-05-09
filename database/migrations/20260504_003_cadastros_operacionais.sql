@@ -44,42 +44,4 @@ CREATE TABLE IF NOT EXISTS tarefa_modelos (
   INDEX idx_modelo_ativo (ativo)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- @seed:start
-INSERT INTO equipes (nome,tipo) VALUES
-('Equipe Limpeza','Operacional'),
-('Equipe Jardinagem','Operacional'),
-('Manutencao','Operacional'),
-('Equipe Piscinas','Operacional'),
-('TI/Seguranca','Apoio'),
-('Prestador','Terceiro')
-ON DUPLICATE KEY UPDATE tipo = VALUES(tipo), ativo = 1;
-
-INSERT INTO locais (nome,categoria) VALUES
-('Ruas internas','Ruas'),
-('Areas comuns','Geral'),
-('Academia','Lazer'),
-('Areas de lazer','Lazer'),
-('Areas verdes','Jardinagem'),
-('Lagos','Lazer'),
-('Piscinas','Lazer'),
-('Estacoes de esgoto','Esgoto'),
-('Hidraulica','Infraestrutura'),
-('Drenagem','Infraestrutura'),
-('Quadros eletricos','Eletrica'),
-('Portoes','Acessos'),
-('CFTV','Seguranca'),
-('Playground','Lazer')
-ON DUPLICATE KEY UPDATE categoria = VALUES(categoria), ativo = 1;
-
-INSERT INTO tarefa_modelos (ciclo,setor,area,atividade,equipe,prioridade)
-SELECT DISTINCT t.ciclo,t.setor,t.area,t.atividade,t.equipe,
-  CASE WHEN t.prioridade = 'Média' THEN 'Media' ELSE t.prioridade END AS prioridade
-FROM tarefas t
-WHERE NOT EXISTS (
-  SELECT 1 FROM tarefa_modelos m
-  WHERE m.ciclo = t.ciclo
-    AND m.setor = t.setor
-    AND COALESCE(m.area,'') = COALESCE(t.area,'')
-    AND m.atividade = t.atividade
-);
--- @seed:end
+-- Seed data for operational records and task models lives in database/seeds/*.sql.

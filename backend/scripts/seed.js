@@ -19,6 +19,8 @@ const {
   dbConfigProblems,
 } = require('../src/config/dbConfig');
 
+const SEEDS_DIR = path.resolve(__dirname, '../../database/seeds');
+
 function isDevSeedAllowed() {
   const env = process.env.NODE_ENV || 'development';
   return env === 'development' || process.env.ALLOW_DEV_SEEDS === 'true';
@@ -98,13 +100,25 @@ async function run() {
   try {
     await conn.query(`USE \`${config.database}\``);
 
-    const seedFile = path.resolve(__dirname, '../../database/seeds/dev.sql');
-    if (fs.existsSync(seedFile)) {
-      await timedStep('Development SQL seed', { file: seedFile }, async () => {
-        await conn.query(fs.readFileSync(seedFile, 'utf8'));
+    if (fs.existsSync(SEEDS_DIR)) {
+      const seedFiles = fs.readdirSync(SEEDS_DIR)
+        .filter((file) => file.endsWith('.sql'))
+        .sort();
+
+      logger.info('SQL seed files discovered', {
+        seedsDir: SEEDS_DIR,
+        count: seedFiles.length,
+        files: seedFiles,
       });
+
+      for (const file of seedFiles) {
+        const seedFile = path.join(SEEDS_DIR, file);
+        await timedStep('SQL seed file', { file }, async () => {
+          await conn.query(fs.readFileSync(seedFile, 'utf8'));
+        });
+      }
     } else {
-      logger.info('Development SQL seed file not found; skipping', { file: seedFile });
+      logger.info('SQL seeds directory not found; skipping', { seedsDir: SEEDS_DIR });
     }
 
     let inserted = 0;

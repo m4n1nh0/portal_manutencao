@@ -187,58 +187,6 @@ CREATE TABLE IF NOT EXISTS observacoes_moradores (
   CONSTRAINT fk_obs_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ══════════════════════════════════════════════════════════════
---  SEED: CICLO 8 DIAS
--- ══════════════════════════════════════════════════════════════
--- @seed:start
-INSERT IGNORE INTO ciclo_8dias (dia_ciclo,setor,trecho,limpeza,rocagem,inspecao) VALUES
-(1,'S1','Entrada → Rua A','Limpeza de ruas/guia/meio-fio + coleta de resíduos','Roçagem (meio-fio + 1,5m dentro dos lotes)','Checagem drenagem/ralos/grelhas'),
-(2,'S2','Rua A → Rua C','Limpeza de ruas/guia/meio-fio + coleta de resíduos','Roçagem (meio-fio + 1,5m dentro dos lotes)','Checagem drenagem/ralos/grelhas'),
-(3,'S3','Rua C → Lago 1','Limpeza de ruas/guia/meio-fio + coleta de resíduos','Roçagem (meio-fio + 1,5m dentro dos lotes)','Checagem drenagem/ralos/grelhas'),
-(4,'S4','Lago 1 → Lago 2','Limpeza de ruas/guia/meio-fio + coleta de resíduos','Roçagem (meio-fio + 1,5m dentro dos lotes)','Checagem drenagem/ralos/grelhas'),
-(5,'S5','Lago 2 → Est. Esgoto','Limpeza de ruas/guia/meio-fio + coleta de resíduos','Roçagem (meio-fio + 1,5m dentro dos lotes)','Checagem drenagem/ralos/grelhas'),
-(6,'S6','Est. 1 → Quadras','Limpeza de ruas/guia/meio-fio + coleta de resíduos','Roçagem (meio-fio + 1,5m dentro dos lotes)','Checagem drenagem/ralos/grelhas'),
-(7,'S7','Quadras → Área Lazer','Limpeza de ruas/guia/meio-fio + coleta de resíduos','Roçagem (meio-fio + 1,5m dentro dos lotes)','Checagem drenagem/ralos/grelhas'),
-(8,'S8','Área Lazer → Praia','Limpeza de ruas/guia/meio-fio + coleta de resíduos','Roçagem (meio-fio + 1,5m dentro dos lotes)','Checagem drenagem/ralos/grelhas');
-
--- ══════════════════════════════════════════════════════════════
---  SEED: TAREFAS
--- ══════════════════════════════════════════════════════════════
-INSERT INTO tarefas (ciclo,setor,area,atividade,equipe,prioridade) VALUES
-('diario','Esgoto','Estações','Ronda/inspeção visual das estações de esgoto','Manutenção','Alta'),
-('diario','Geral','','Coleta e organização de resíduos','Equipe Limpeza','Alta'),
-('diario','Geral','Áreas comuns','Limpeza diária das áreas comuns','Equipe Limpeza','Alta'),
-('diario','Geral','','Limpeza da academia (2x ao dia)','Equipe Limpeza','Média'),
-('diario','Geral','','Limpeza áreas de lazer','Equipe Limpeza','Média'),
-('diario','Hidráulica','','Verificação de vazamentos aparentes','Manutenção','Média'),
-('diario','Jardinagem','Áreas verdes','Limpeza de folhas e resíduos vegetais','Equipe Jardinagem','Média'),
-('diario','Jardinagem','Áreas verdes','Manutenção do sistema de irrigação','Equipe Jardinagem','Alta'),
-('diario','Lagos','Lagos (3)','Inspeção visual + remoção de resíduos','Manutenção/Jardinagem','Média'),
-('diario','Piscinas','Piscinas','Aplicação de produtos Cl/Ph (diário)','Equipe Piscinas','Alta'),
-('diario','Piscinas','Piscinas','Limpeza de decks (diário)','Equipe Limpeza','Média'),
-('diario','Piscinas','Piscinas','Limpeza de mobiliário (diário)','Equipe Limpeza','Média'),
-('diario','S1','','Limpeza de ruas (Entrada → Rua A)','Equipe Limpeza',''),
-('diario','S2','','Limpeza de ruas (Rua A → Rua C)','Equipe Limpeza',''),
-('diario','S3','','Roçagem meio-fio (Rua C → Lago 1)','Equipe Jardinagem',''),
-('diario','S4','','Limpeza de ruas (Lago 1 → Lago 2)','Equipe Limpeza',''),
-('semanal','Elétrica','Áreas comuns','Troca de lâmpadas e luminárias','Manutenção','Média'),
-('semanal','Hidráulica','Club','Verificação do sistema de filtros','Manutenção','Média'),
-('semanal','Hidráulica','Drenagem','Limpeza de caixas de gordura coletivas','Manutenção','Média'),
-('semanal','Portões','','Lubrificação de trilhos e dobradiças','Manutenção','Média'),
-('semanal','Segurança','CFTV','Limpeza de lentes + teste de gravação','TI/Segurança','Média'),
-('semanal','Áreas de Lazer','Playground','Inspeção de brinquedos + fixações','Manutenção','Alta'),
-('mensal','Elétrica','Quadros','Revisão de quadros elétricos (prestador)','Prestador','Alta'),
-('mensal','Hidráulica','','Verificação de bombas (rodízio)','Manutenção','Alta'),
-('mensal','Piscinas','','Monitoramento químico completo','Equipe Piscinas','Alta'),
-('mensal','Portões/Acessos','Automatizadores','Ajuste de motores e automatizadores','Manutenção','Alta'),
-('mensal','Seg. Incêndio','Iluminação','Teste de iluminação de emergência','Manutenção','Alta'),
-('mensal','Seg. Incêndio','Rotas','Verificação de sinalização de incêndio','Manutenção','Alta'),
-('anual','Esgoto','','Limpeza das estações elevatórias','Prestador','Alta'),
-('anual','Estrutural','','Inspeção estrutural preventiva','Engenharia/Prestador','Alta'),
-('anual','Geral','','Dedetização e desratização','Prestador','Média'),
-('anual','Hidráulica','','Limpeza de caixas d''água','Prestador','Alta'),
-('anual','Incêndio','','Recarga de extintores','Prestador','Alta'),
-('anual','Piscinas','','Troca do elemento filtrante','Prestador','Alta');
--- @seed:end
+-- Seed data lives in database/seeds/*.sql and is applied by backend/scripts/seed.js.
 
 -- Usuários criados via script (bcrypt)
