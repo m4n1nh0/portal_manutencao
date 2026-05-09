@@ -8,8 +8,7 @@ import api from '../utils/api';
 export default function PhotosPanel({ tarefa, onClose }) {
   const { user }  = useAuth();
   const toast     = useToast();
-  const PODE_FOTO = ['admin','supervisor','sindico','subsindico','campo'];
-  const canUpload = PODE_FOTO.includes(user?.perfil);
+  const canUpload = Boolean(user?.permissoes?.canPhoto);
 
   const [fotos,   setFotos]   = useState([]);
   const [loading, setLoading] = useState(true);
@@ -145,7 +144,7 @@ export default function PhotosPanel({ tarefa, onClose }) {
               <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:'12px'}}>
                 {fotos.map(f => {
                   const dt = new Date(f.enviado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-                  const canDel = user?.perfil==='admin' || f.usuario_id===user?.id;
+                  const canDel = ['admin','supervisor','sindico'].includes(user?.perfil) || f.usuario_id===user?.id;
                   return (
                     <div key={f.id} style={{background:'var(--s2)',border:'1px solid var(--bd)',borderRadius:'12px',overflow:'hidden'}}>
                       <div style={{aspectRatio:'4/3',cursor:'zoom-in',position:'relative',overflow:'hidden',background:'#0f1923'}}

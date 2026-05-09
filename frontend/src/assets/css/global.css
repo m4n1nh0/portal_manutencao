@@ -197,6 +197,10 @@ textarea.form-control { resize:vertical;min-height:80px; }
 .filter-row     { display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0; }
 .filter-select  { padding:7px 10px;background:var(--input-bg);border:1px solid var(--bd);border-radius:8px;color:var(--tx);font-size:12px;outline:none;-webkit-appearance:none;cursor:pointer;min-width:0;min-height:36px; }
 .filter-select:focus { border-color:var(--role-accent);box-shadow:0 0 0 4px rgb(var(--role-rgb) / .12); }
+.filter-chips.no-scroll { overflow:visible;flex-wrap:wrap;margin-bottom:0; }
+.date-filter-row { display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px;min-width:0; }
+.date-input { min-width:146px; }
+.filter-select:disabled { opacity:.55;cursor:not-allowed;background:var(--s2); }
 
 /* ── Progress ──────────────────────────────────── */
 .progress-row    { margin-bottom:12px; }
@@ -252,6 +256,10 @@ textarea.form-control { resize:vertical;min-height:80px; }
 
 /* ── Ciclo ─────────────────────────────────────── */
 .ciclo-details   { font-size:12px;color:var(--mu);margin-top:8px;line-height:1.8; }
+.ciclo-detail-row { display:grid;gap:2px;padding:6px 0;border-top:1px solid var(--bd);line-height:1.45; }
+.ciclo-detail-row:first-child { border-top:none;padding-top:0; }
+.ciclo-detail-row strong { color:var(--tx);font-size:12px; }
+.ciclo-detail-row span { color:var(--mu);overflow-wrap:anywhere; }
 .ciclo-grid      { display:grid;grid-template-columns:1fr;gap:10px; }
 .ciclo-card      { background:var(--s);border:1px solid var(--bd);border-radius:var(--r);padding:14px;min-width:0; }
 .ciclo-card-head { display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px; }
@@ -261,6 +269,11 @@ textarea.form-control { resize:vertical;min-height:80px; }
 .ciclo-step      { border-top:1px solid var(--bd);padding-top:8px; }
 .ciclo-step span { display:block;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:3px; }
 .ciclo-step p    { font-size:12px;color:var(--tx);line-height:1.45;overflow-wrap:anywhere; }
+.ciclo-step small { display:block;font-size:11px;color:var(--mu);margin-top:4px;overflow-wrap:anywhere; }
+.cycle-activity-editor { display:grid;gap:10px;margin-top:8px; }
+.cycle-activity-head { display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;font-weight:800;color:var(--tx); }
+.cycle-activity-row { border:1px solid var(--bd);border-radius:8px;padding:12px;background:var(--bg); }
+.cycle-activity-check { display:flex;align-items:center;gap:7px;font-size:12px;color:var(--mu);white-space:nowrap; }
 
 /* -- Account ------------------------------------------------ */
 .account-hero { background:linear-gradient(135deg,rgb(var(--role-rgb) / .12),var(--s));border:1px solid rgb(var(--role-rgb) / .18);border-radius:8px;padding:16px;display:flex;align-items:center;gap:14px;margin-bottom:12px;flex-wrap:wrap; }
@@ -288,6 +301,20 @@ textarea.form-control { resize:vertical;min-height:80px; }
 .twofa-dot.on { background:var(--grn); }
 .twofa-dot.off { background:var(--red); }
 
+/* -- Schedule ---------------------------------------------- */
+.schedule-grid { display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-bottom:14px;align-items:start; }
+.schedule-form-grid { display:grid;grid-template-columns:minmax(0,1fr);gap:10px; }
+.schedule-summary { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px; }
+.summary-pill { background:var(--s);border:1px solid var(--bd);border-radius:8px;padding:11px 12px;min-width:0; }
+.summary-pill span { display:block;font-size:11px;color:var(--mu);margin-bottom:3px; }
+.summary-pill strong { display:block;font-family:'Syne',sans-serif;font-size:22px;line-height:1;color:var(--tx); }
+.schedule-days { display:grid;gap:12px; }
+.schedule-day { border-top:1px solid var(--bd);padding-top:13px; }
+.schedule-day:first-child { border-top:none;padding-top:0; }
+.schedule-day-head { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px; }
+.schedule-day-date { font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--tx); }
+.task-list.compact { gap:8px; }
+
 /* ── Bottom Nav ────────────────────────────────── */
 .bottom-nav { position:fixed;bottom:10px;left:12px;right:12px;height:calc(56px + var(--sb));padding:5px 6px calc(5px + var(--sb));background:var(--bottom-bg);border:1px solid var(--bd);border-radius:16px;display:flex;align-items:stretch;z-index:60;backdrop-filter:blur(14px);gap:6px;box-shadow:0 12px 32px rgba(29,39,47,.14); }
 .bn-item    { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:none;border:none;color:var(--mu);font-size:10px;font-weight:800;padding:6px 4px;border-radius:8px;min-width:0; }
@@ -308,6 +335,7 @@ textarea.form-control { resize:vertical;min-height:80px; }
   .stats-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
   .morador-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .account-form-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .schedule-form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .filter-row > .filter-select { flex:0 1 auto; }
 }
 @media(min-width:860px){
@@ -325,6 +353,7 @@ textarea.form-control { resize:vertical;min-height:80px; }
   .ciclo-grid { grid-template-columns:repeat(2,minmax(0,1fr));gap:12px; }
   .account-grid { grid-template-columns:minmax(0,1.06fr) minmax(320px,.94fr);gap:14px; }
   .settings-card { padding:17px; }
+  .schedule-grid { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
   .bottom-nav { display:none; }
   .dash-grid { grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px; }
 }
@@ -344,6 +373,9 @@ textarea.form-control { resize:vertical;min-height:80px; }
   .filter-row > input.filter-select { flex:1 1 100%;min-width:0!important;width:100%; }
   .filter-row > .btn,
   .filter-row > .btn-icon { flex:1 1 auto; }
+  .date-filter-row > .filter-chips { width:100%; }
+  .date-filter-row > .date-input { flex:1 1 calc(50% - 4px);min-width:0; }
+  .schedule-summary { grid-template-columns:1fr; }
   .task-card-top { flex-direction:column;align-items:flex-start; }
   .task-card-top .badge { max-width:100%; }
   .task-actions { display:grid;grid-template-columns:repeat(2,minmax(0,1fr)); }
@@ -357,6 +389,8 @@ textarea.form-control { resize:vertical;min-height:80px; }
   [style*="grid-template-columns:1fr 1fr"],
   [style*="grid-template-columns: 120px 1fr"],
   [style*="grid-template-columns:120px 1fr"],
+  [style*="grid-template-columns: 1fr auto auto"],
+  [style*="grid-template-columns:1fr auto auto"],
   [style*="grid-template-columns: 1fr 120px"],
   [style*="grid-template-columns:1fr 120px"] { grid-template-columns:1fr!important; }
 }

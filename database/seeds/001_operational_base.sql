@@ -17,6 +17,22 @@ ON DUPLICATE KEY UPDATE
   rocagem = VALUES(rocagem),
   inspecao = VALUES(inspecao);
 
+INSERT INTO ciclo_atividades (id,ciclo_id,ordem,titulo,descricao,equipe,prioridade,ativo)
+SELECT UUID(), c.id, seed.ordem, seed.titulo, seed.descricao, seed.equipe, '', 1
+FROM ciclo_8dias c
+JOIN (
+  SELECT dia_ciclo, 1 ordem, 'Limpeza' titulo, limpeza descricao, 'Equipe Limpeza' equipe FROM ciclo_8dias
+  UNION ALL
+  SELECT dia_ciclo, 2, 'Rocagem', rocagem, 'Equipe Jardinagem' FROM ciclo_8dias
+  UNION ALL
+  SELECT dia_ciclo, 3, 'Inspecao', inspecao, 'Manutencao' FROM ciclo_8dias
+) seed ON seed.dia_ciclo = c.dia_ciclo
+WHERE seed.descricao IS NOT NULL AND TRIM(seed.descricao) <> ''
+  AND NOT EXISTS (
+    SELECT 1 FROM ciclo_atividades a
+    WHERE a.ciclo_id = c.id AND a.titulo = seed.titulo
+  );
+
 INSERT INTO quadras (codigo,nome) VALUES
 ('A','Quadra A'),('B','Quadra B'),('C','Quadra C'),('D','Quadra D'),
 ('E','Quadra E'),('F','Quadra F'),('G','Quadra G'),('H','Quadra H'),

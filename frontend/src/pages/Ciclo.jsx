@@ -27,31 +27,40 @@ export default function Ciclo() {
         <EmptyState icon="CI" title="Nenhum dia cadastrado" desc="Cadastre os dias do ciclo para exibir a rota operacional."/>
       ) : (
         <div className="ciclo-grid">
-          {ciclo.map(c => (
-            <article key={c.id} className="ciclo-card">
-              <div className="ciclo-card-head">
-                <span className="ciclo-day">Dia {c.dia_ciclo}</span>
-                <SectorTag setor={c.setor}/>
-              </div>
-              <div className="ciclo-card-title">{c.trecho || c.setor}</div>
-              <div className="ciclo-steps">
-                <Step label="Limpeza" value={c.limpeza}/>
-                <Step label="Rocagem" value={c.rocagem}/>
-                <Step label="Inspecao" value={c.inspecao}/>
-              </div>
-            </article>
-          ))}
+          {ciclo.map(c => {
+            const atividades = (c.atividades || []).filter((atividade) => atividade.ativo);
+            return (
+              <article key={c.id} className="ciclo-card">
+                <div className="ciclo-card-head">
+                  <span className="ciclo-day">Dia {c.dia_ciclo}</span>
+                  <SectorTag setor={c.setor}/>
+                </div>
+                <div className="ciclo-card-title">{c.trecho || c.setor}</div>
+                <div className="ciclo-steps">
+                  {atividades.length ? atividades.map((atividade) => (
+                    <Step
+                      key={atividade.id}
+                      label={atividade.titulo}
+                      value={atividade.descricao}
+                      meta={[atividade.equipe, atividade.prioridade].filter(Boolean).join(' - ')}
+                    />
+                  )) : <Step label="Atividades" value="Nenhuma atividade ativa."/>}
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </Layout>
   );
 }
 
-function Step({ label, value }) {
+function Step({ label, value, meta }) {
   return (
     <div className="ciclo-step">
       <span>{label}</span>
       <p>{value || '-'}</p>
+      {meta && <small>{meta}</small>}
     </div>
   );
 }

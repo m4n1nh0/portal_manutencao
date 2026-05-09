@@ -4,19 +4,33 @@ import Layout from '../components/Layout';
 import { Spinner, StatusBadge, SectorTag, ProgressBar, InfoBox } from '../components/UI';
 import { useAuth } from '../hooks/useAuth';
 import api from '../utils/api';
+import { addDays, formatDate, paramsForPeriod, PERIOD_OPTIONS, rangeFor, today } from '../utils/dateFilters';
 
 export default function Dashboard() {
   const { user }  = useAuth();
   const navigate  = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [periodo, setPeriodo] = useState('todos');
+  const [inicio, setInicio] = useState(today());
+  const [fim, setFim] = useState(addDays(7));
 
   useEffect(() => {
-    api.dashboard()
+    setLoading(true);
+    api.dashboard(paramsForPeriod(periodo, inicio, fim))
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [periodo, inicio, fim]);
+
+  function changePeriodo(value) {
+    setPeriodo(value);
+    if (value !== 'todos' && value !== 'custom') {
+      const [nextInicio, nextFim] = rangeFor(value);
+      setInicio(nextInicio);
+      setFim(nextFim);
+    }
+  }
 
   const clrs = { diario:'var(--acc)', semanal:'var(--grn)', mensal:'var(--blu)', anual:'var(--pur)', todas:'var(--tx)' };
   const lbls = { diario:'Diário', semanal:'Semanal', mensal:'Mensal', anual:'Anual', todas:'Todas' };
@@ -31,6 +45,18 @@ export default function Dashboard() {
 
   return (
     <Layout title="Dashboard" badges={{ aprovacoes: data.pendentes_aprovacao }}>
+      <div className="date-filter-row">
+        <div className="filter-chips no-scroll">
+          {PERIOD_OPTIONS.map(([value, label]) => (
+            <button key={value} type="button" className={`filter-chip${periodo === value ? ' active' : ''}`} onClick={() => changePeriodo(value)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <input className="filter-select date-input" type="date" value={inicio} disabled={periodo === 'todos'} onChange={(e) => { setPeriodo('custom'); setInicio(e.target.value); }}/>
+        <input className="filter-select date-input" type="date" value={fim} disabled={periodo === 'todos'} onChange={(e) => { setPeriodo('custom'); setFim(e.target.value); }}/>
+      </div>
+
       {data.pendentes_aprovacao > 0 && (
         <InfoBox color="var(--acc)" bg="rgba(240,180,41,.07)" border="rgba(240,180,41,.2)">
           ⚠️ <strong>{data.pendentes_aprovacao}</strong> cadastro(s) de morador aguardando aprovação.{' '}
@@ -103,6 +129,7 @@ export default function Dashboard() {
               <div className="task-card-meta">
                 <SectorTag setor={r.setor}/>
                 <span className="muted-sm">{lbls[r.ciclo] || r.ciclo}</span>
+                {r.data_agendada && <span className="muted-sm">{formatDate(r.data_agendada)}</span>}
               </div>
             </div>
           ))}

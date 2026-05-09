@@ -143,6 +143,8 @@ Esses usuarios so sao criados quando `RUN_SEEDS=true` e `ALLOW_DEV_SEEDS=true`.
 | `conselho`   | `Cons@123`  | Conselho     |
 | `campo`      | `Campo@123` | Equipe Campo |
 
+O usuário `conselho` representa o perfil de conselheiro, com permissões específicas para análise e aprovação, conforme definido nos seeds e permissões do sistema.
+
 > ⚠️ Troque as senhas após o primeiro acesso!
 
 ## Observações

@@ -15,11 +15,14 @@ npm run dev
 ## Usuarios iniciais
 Criados apenas em desenvolvimento (`NODE_ENV=development`) pelo `npm run seed` ou `npm run docker:dev`.
 
+
 admin / Admin@123
 supervisor / Super@123
 sindico / Sind@123
-morador / Mor@123
+subsindico / Sub@123
+conselho / Cons@123
 campo / Campo@123
+morador / Mor@123
 
 Os dados demonstrativos ficam em `database/seeds/*.sql`.
 As migrations em `database/migrations/*.sql` devem conter apenas estrutura/evolucao do banco.

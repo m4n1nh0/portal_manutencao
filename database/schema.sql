@@ -100,14 +100,31 @@ CREATE TABLE IF NOT EXISTS audit_log (
 -- ── CICLO 8 DIAS ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ciclo_8dias (
   id        INT          NOT NULL AUTO_INCREMENT,
-  dia_ciclo TINYINT      NOT NULL,
-  setor     VARCHAR(20)  NOT NULL,
-  trecho    VARCHAR(120) NULL,
+  dia_ciclo SMALLINT     NOT NULL,
+  setor     VARCHAR(80)  NOT NULL,
+  trecho    VARCHAR(160) NULL,
   limpeza   TEXT         NULL,
   rocagem   TEXT         NULL,
   inspecao  TEXT         NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_dia (dia_ciclo)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ciclo_atividades (
+  id            CHAR(36)     NOT NULL DEFAULT (UUID()),
+  ciclo_id      INT          NOT NULL,
+  ordem         SMALLINT     NOT NULL DEFAULT 1,
+  titulo        VARCHAR(80)  NOT NULL,
+  descricao     TEXT         NOT NULL,
+  equipe        VARCHAR(100) NULL,
+  prioridade    VARCHAR(20)  NOT NULL DEFAULT '',
+  ativo         TINYINT(1)   NOT NULL DEFAULT 1,
+  criado_em     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_ciclo_atividades_ciclo (ciclo_id,ativo,ordem),
+  CONSTRAINT fk_ciclo_atividades_ciclo
+    FOREIGN KEY (ciclo_id) REFERENCES ciclo_8dias(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── TAREFAS ──────────────────────────────────────────────────
@@ -195,11 +212,16 @@ CREATE TABLE IF NOT EXISTS tarefas (
   status        ENUM('Pendente','Em Andamento','Concluído','Em Revisão')
                 NOT NULL DEFAULT 'Pendente',
   observacoes   TEXT        NULL,
+  data_agendada DATE        NULL,
+  data_limite   DATE        NULL,
+  origem_agendamento VARCHAR(30) NULL,
   criado_em     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   atualizado_por CHAR(36)   NULL,
   PRIMARY KEY (id),
   INDEX idx_ciclo     (ciclo),
+  INDEX idx_tarefas_data_agendada (data_agendada),
+  INDEX idx_tarefas_data_limite   (data_limite),
   INDEX idx_setor     (setor),
   INDEX idx_status    (status),
   INDEX idx_prioridade(prioridade),
@@ -275,6 +297,22 @@ INSERT IGNORE INTO ciclo_8dias (dia_ciclo,setor,trecho,limpeza,rocagem,inspecao)
 (6,'Quadra K','Quadra K','Limpeza de ruas, guias e meio-fio','Rocagem no meio-fio e faixa interna dos lotes','Checagem de drenagem, ralos e grelhas'),
 (7,'Quadra L','Quadra L','Limpeza de ruas, guias e meio-fio','Rocagem no meio-fio e faixa interna dos lotes','Checagem de drenagem, ralos e grelhas'),
 (8,'Quadra M','Quadra M','Limpeza de ruas, guias e meio-fio','Rocagem no meio-fio e faixa interna dos lotes','Checagem de drenagem, ralos e grelhas');
+
+INSERT INTO ciclo_atividades (id,ciclo_id,ordem,titulo,descricao,equipe,prioridade,ativo)
+SELECT UUID(), c.id, seed.ordem, seed.titulo, seed.descricao, seed.equipe, '', 1
+FROM ciclo_8dias c
+JOIN (
+  SELECT dia_ciclo, 1 ordem, 'Limpeza' titulo, limpeza descricao, 'Equipe Limpeza' equipe FROM ciclo_8dias
+  UNION ALL
+  SELECT dia_ciclo, 2, 'Rocagem', rocagem, 'Equipe Jardinagem' FROM ciclo_8dias
+  UNION ALL
+  SELECT dia_ciclo, 3, 'Inspecao', inspecao, 'Manutencao' FROM ciclo_8dias
+) seed ON seed.dia_ciclo = c.dia_ciclo
+WHERE seed.descricao IS NOT NULL AND TRIM(seed.descricao) <> ''
+  AND NOT EXISTS (
+    SELECT 1 FROM ciclo_atividades a
+    WHERE a.ciclo_id = c.id AND a.titulo = seed.titulo
+  );
 
 INSERT INTO quadras (codigo,nome) VALUES
 ('A','Quadra A'),('B','Quadra B'),('C','Quadra C'),('D','Quadra D'),

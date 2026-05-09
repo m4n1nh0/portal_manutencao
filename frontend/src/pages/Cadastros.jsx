@@ -12,7 +12,8 @@ const TABS = [
 ];
 
 const CICLO_LABELS = { diario: 'Diario', semanal: 'Semanal', mensal: 'Mensal', anual: 'Anual', todas: 'Todas' };
-const EMPTY_CICLO = { dia_ciclo: 1, setor: '', trecho: '', limpeza: '', rocagem: '', inspecao: '' };
+const EMPTY_ATIVIDADE = { titulo: '', descricao: '', equipe: '', prioridade: '', ativo: true };
+const emptyCiclo = (dia = 1) => ({ dia_ciclo: dia, setor: '', trecho: '', atividades: [{ ...EMPTY_ATIVIDADE }] });
 const EMPTY_EQUIPE = { nome: '', tipo: '', contato: '', ativo: true };
 const EMPTY_LOCAL = { nome: '', categoria: '', descricao: '', ativo: true };
 const EMPTY_MODELO = { ciclo: 'diario', setor: '', area: '', atividade: '', equipe: '', prioridade: '', ativo: true };
@@ -54,7 +55,7 @@ export default function Cadastros() {
   const filtered = useMemo(() => {
     const q = busca.trim().toLowerCase();
     const keep = (text) => !q || text.toLowerCase().includes(q);
-    if (tab === 'ciclo') return ciclo.filter((x) => keep(`${x.dia_ciclo} ${x.setor} ${x.trecho} ${x.limpeza} ${x.rocagem} ${x.inspecao}`));
+    if (tab === 'ciclo') return ciclo.filter((x) => keep(`${x.dia_ciclo} ${x.setor} ${x.trecho} ${(x.atividades || []).map((a) => `${a.titulo} ${a.descricao} ${a.equipe}`).join(' ')}`));
     if (tab === 'equipes') return equipes.filter((x) => keep(`${x.nome} ${x.tipo} ${x.contato}`));
     if (tab === 'locais') return locais.filter((x) => keep(`${x.nome} ${x.categoria} ${x.descricao}`));
     return modelos.filter((x) => keep(`${x.ciclo} ${x.setor} ${x.area} ${x.atividade} ${x.equipe}`));
@@ -63,7 +64,7 @@ export default function Cadastros() {
   function newItem() {
     if (tab === 'ciclo') {
       const nextDay = Math.max(0, ...ciclo.map((item) => Number(item.dia_ciclo) || 0)) + 1;
-      setForm({ type: 'ciclo', data: { ...EMPTY_CICLO, dia_ciclo: nextDay } });
+      setForm({ type: 'ciclo', data: emptyCiclo(nextDay) });
     }
     if (tab === 'equipes') setForm({ type: 'equipe', data: EMPTY_EQUIPE });
     if (tab === 'locais') setForm({ type: 'local', data: EMPTY_LOCAL });
@@ -71,6 +72,18 @@ export default function Cadastros() {
   }
 
   function editItem(type, data) {
+    if (type === 'ciclo') {
+      const atividades = Array.isArray(data.atividades) && data.atividades.length
+        ? data.atividades.map((atividade, index) => ({
+            ...EMPTY_ATIVIDADE,
+            ...atividade,
+            ordem: atividade.ordem || index + 1,
+            ativo: atividade.ativo === true || atividade.ativo === 1 || atividade.ativo === '1',
+          }))
+        : [{ ...EMPTY_ATIVIDADE }];
+      setForm({ type, data: { ...data, atividades } });
+      return;
+    }
     const ativo = data.ativo === undefined || data.ativo === null
       ? true
       : data.ativo === true || data.ativo === 1 || data.ativo === '1';
@@ -130,12 +143,15 @@ export default function Cadastros() {
         <div className="task-list">
           {tab === 'ciclo' && filtered.map((item) => (
             <Card key={item.id} title={`Dia ${item.dia_ciclo} - ${item.trecho || item.setor}`}
-              meta={<><SectorTag setor={item.setor} /></>}
+              meta={<><SectorTag setor={item.setor} /><span className="muted-sm">{(item.atividades || []).filter((a) => a.ativo).length} atividade(s)</span></>}
               actions={<CrudActions onEdit={() => editItem('ciclo', item)} onDelete={() => setConfirm({ type: 'ciclo', id: item.id, nome: `Dia ${item.dia_ciclo}` })} />}>
               <div className="ciclo-details">
-                Limpeza: {item.limpeza || '-'}<br />
-                Rocagem: {item.rocagem || '-'}<br />
-                Inspecao: {item.inspecao || '-'}
+                {(item.atividades || []).length ? item.atividades.map((atividade) => (
+                  <div key={atividade.id || `${item.id}-${atividade.ordem}`} className="ciclo-detail-row">
+                    <strong>{atividade.titulo}</strong>
+                    <span>{atividade.descricao}</span>
+                  </div>
+                )) : '-'}
               </div>
             </Card>
           ))}
@@ -255,6 +271,24 @@ function ActiveField({ form, setForm }) {
 }
 
 function CicloForm({ form, setForm }) {
+  const atividades = Array.isArray(form.atividades) && form.atividades.length
+    ? form.atividades
+    : [{ ...EMPTY_ATIVIDADE }];
+
+  function setAtividade(index, patch) {
+    const next = atividades.map((item, idx) => idx === index ? { ...item, ...patch } : item);
+    setForm({ atividades: next });
+  }
+
+  function addAtividade() {
+    setForm({ atividades: [...atividades, { ...EMPTY_ATIVIDADE, ordem: atividades.length + 1 }] });
+  }
+
+  function removeAtividade(index) {
+    const next = atividades.filter((_, idx) => idx !== index);
+    setForm({ atividades: next.length ? next : [{ ...EMPTY_ATIVIDADE }] });
+  }
+
   return (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '10px' }}>
@@ -262,9 +296,39 @@ function CicloForm({ form, setForm }) {
         <Field label="Setor"><input className="form-control" value={form.setor || ''} onChange={(e) => setForm({ setor: e.target.value })} required /></Field>
       </div>
       <Field label="Trecho"><input className="form-control" value={form.trecho || ''} onChange={(e) => setForm({ trecho: e.target.value })} /></Field>
-      <Field label="Limpeza"><textarea className="form-control" rows={2} value={form.limpeza || ''} onChange={(e) => setForm({ limpeza: e.target.value })} /></Field>
-      <Field label="Rocagem"><textarea className="form-control" rows={2} value={form.rocagem || ''} onChange={(e) => setForm({ rocagem: e.target.value })} /></Field>
-      <Field label="Inspecao"><textarea className="form-control" rows={2} value={form.inspecao || ''} onChange={(e) => setForm({ inspecao: e.target.value })} /></Field>
+      <div className="cycle-activity-editor">
+        <div className="cycle-activity-head">
+          <span>Atividades</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={addAtividade}>+ Atividade</button>
+        </div>
+        {atividades.map((atividade, index) => (
+          <div key={atividade.id || index} className="cycle-activity-row">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: '10px' }}>
+              <Field label="Titulo">
+                <input className="form-control" value={atividade.titulo || ''} onChange={(e) => setAtividade(index, { titulo: e.target.value })} required />
+              </Field>
+              <Field label="Prioridade">
+                <select className="form-control" value={atividade.prioridade || ''} onChange={(e) => setAtividade(index, { prioridade: e.target.value })}>
+                  <option value="">Sem</option><option value="Alta">Alta</option><option value="Media">Media</option><option value="Baixa">Baixa</option>
+                </select>
+              </Field>
+            </div>
+            <Field label="Descricao">
+              <textarea className="form-control" rows={2} value={atividade.descricao || ''} onChange={(e) => setAtividade(index, { descricao: e.target.value })} required />
+            </Field>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '10px', alignItems: 'center' }}>
+              <Field label="Responsavel">
+                <input className="form-control" value={atividade.equipe || ''} onChange={(e) => setAtividade(index, { equipe: e.target.value })} />
+              </Field>
+              <label className="cycle-activity-check">
+                <input type="checkbox" checked={!!atividade.ativo} onChange={(e) => setAtividade(index, { ativo: e.target.checked })} />
+                Ativo
+              </label>
+              <button type="button" className="btn btn-danger btn-sm" onClick={() => removeAtividade(index)}>Remover</button>
+            </div>
+          </div>
+        ))}
+      </div>
     </>
   );
 }

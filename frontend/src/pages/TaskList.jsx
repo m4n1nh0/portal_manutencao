@@ -5,6 +5,7 @@ import PhotosPanel from './PhotosPanel';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import api from '../utils/api';
+import { addDays, formatDate, paramsForPeriod, PERIOD_OPTIONS, rangeFor, today } from '../utils/dateFilters';
 
 const CYCLE_LABELS = { diario:'Diario', semanal:'Semanal', mensal:'Mensal', anual:'Anual', todas:'Todas' };
 
@@ -21,6 +22,9 @@ export default function TaskList({ ciclo }) {
   const [fPrio,     setFPrio]     = useState('');
   const [fStatus,   setFStatus]   = useState('');
   const [busca,     setBusca]     = useState('');
+  const [periodo,   setPeriodo]   = useState('todos');
+  const [inicio,    setInicio]    = useState(today());
+  const [fim,       setFim]       = useState(addDays(7));
   const [editId,    setEditId]    = useState(null);
   const [confirm,   setConfirm]   = useState(null);
   const [fotasTarefa, setFotos]   = useState(null);
@@ -29,11 +33,11 @@ export default function TaskList({ ciclo }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { tarefas } = await api.tarefas({ ciclo });
+      const { tarefas } = await api.tarefas({ ciclo, ...paramsForPeriod(periodo, inicio, fim) });
       setTarefas(tarefas);
     } catch(e) { toast(e.message,'error'); }
     finally { setLoading(false); }
-  }, [ciclo]);
+  }, [ciclo, periodo, inicio, fim]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -44,6 +48,15 @@ export default function TaskList({ ciclo }) {
   if (fPrio)   rows = rows.filter(r=>r.prioridade===fPrio);
   if (fStatus) rows = rows.filter(r=>r.status===fStatus);
   if (busca)   rows = rows.filter(r=>(r.atividade+r.setor+r.equipe).toLowerCase().includes(busca.toLowerCase()));
+
+  function changePeriodo(value) {
+    setPeriodo(value);
+    if (value !== 'todos' && value !== 'custom') {
+      const [nextInicio, nextFim] = rangeFor(value);
+      setInicio(nextInicio);
+      setFim(nextFim);
+    }
+  }
 
   // ── Ações ────────────────────────────────────────────────────
   async function patchStatus(id, status) {
@@ -77,6 +90,34 @@ export default function TaskList({ ciclo }) {
             ))}
           </div>
         )}
+        <div className="date-filter-row">
+          <div className="filter-chips no-scroll">
+            {PERIOD_OPTIONS.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={`filter-chip${periodo === value ? ' active' : ''}`}
+                onClick={() => changePeriodo(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <input
+            className="filter-select date-input"
+            type="date"
+            value={inicio}
+            disabled={periodo === 'todos'}
+            onChange={(e) => { setPeriodo('custom'); setInicio(e.target.value); }}
+          />
+          <input
+            className="filter-select date-input"
+            type="date"
+            value={fim}
+            disabled={periodo === 'todos'}
+            onChange={(e) => { setPeriodo('custom'); setFim(e.target.value); }}
+          />
+        </div>
         <div className="filter-row">
           <select className="filter-select" value={fPrio} onChange={e=>setFPrio(e.target.value)}>
             <option value="">Prioridade</option>
@@ -90,7 +131,7 @@ export default function TaskList({ ciclo }) {
           <input className="filter-select" type="text" placeholder="🔍 Buscar…"
             value={busca} onChange={e=>setBusca(e.target.value)}
             style={{ minWidth:'120px' }}/>
-          <button className="btn-icon" onClick={() => api.tarefas({ciclo}).then(({tarefas:ts})=>exportCSV(ts,ciclo))}
+          <button className="btn-icon" onClick={() => api.tarefas({ciclo, ...paramsForPeriod(periodo, inicio, fim)}).then(({tarefas:ts})=>exportCSV(ts,ciclo))}
             title="Exportar CSV">⬇</button>
           {perms.canAdd && (
             <button className="btn btn-primary btn-sm" onClick={() => { setEditId(null); setShowForm(true); }}>
@@ -117,6 +158,8 @@ export default function TaskList({ ciclo }) {
                   {r.area && <span className="muted-sm">{r.area}</span>}
                   {r.ciclo === 'todas' && <span className="muted-sm">{CYCLE_LABELS.todas}</span>}
                   {r.equipe && <span className="muted-sm">• {r.equipe}</span>}
+                  {r.data_agendada && <span className="muted-sm">Ag. {formatDate(r.data_agendada)}</span>}
+                  {r.data_limite && <span className="muted-sm">Lim. {formatDate(r.data_limite)}</span>}
                   <PrioBadge p={r.prioridade}/>
                 </div>
                 {r.observacoes && <div className="task-obs">💬 {r.observacoes}</div>}
@@ -183,6 +226,8 @@ function TaskForm({ ciclo, tarefaId, tarefas, onClose, onSaved }) {
     prioridade: tarefa?.prioridade || 'Média',
     status:     tarefa?.status     || 'Pendente',
     observacoes:tarefa?.observacoes|| '',
+    data_agendada: tarefa?.data_agendada ? String(tarefa.data_agendada).slice(0, 10) : today(),
+    data_limite: tarefa?.data_limite ? String(tarefa.data_limite).slice(0, 10) : '',
   });
   const [loading, setLoading] = useState(false);
   const set = (k,v) => setForm(p=>({...p,[k]:v}));
@@ -192,9 +237,14 @@ function TaskForm({ ciclo, tarefaId, tarefas, onClose, onSaved }) {
     if (!form.setor.trim()||!form.atividade.trim()) { toast('Setor e atividade obrigatórios.','error'); return; }
     setLoading(true);
     try {
+      const payload = {
+        ...form,
+        data_agendada: form.data_agendada || null,
+        data_limite: form.data_limite || null,
+      };
       const res = tarefaId
-        ? await api.editarTarefa(tarefaId, form)
-        : await api.criarTarefa(form);
+        ? await api.editarTarefa(tarefaId, payload)
+        : await api.criarTarefa(payload);
       onSaved(res.tarefa);
     } catch(e) { toast(e.message,'error'); }
     finally { setLoading(false); }
@@ -238,6 +288,16 @@ function TaskForm({ ciclo, tarefaId, tarefas, onClose, onSaved }) {
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
             <div className="form-group">
+              <label className="form-label">Data agendada</label>
+              <input className="form-control" type="date" value={form.data_agendada} onChange={e=>set('data_agendada',e.target.value)}/>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Data limite</label>
+              <input className="form-control" type="date" value={form.data_limite} onChange={e=>set('data_limite',e.target.value)}/>
+            </div>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+            <div className="form-group">
               <label className="form-label">Responsável</label>
               <input className="form-control" value={form.equipe} onChange={e=>set('equipe',e.target.value)} placeholder="Ex: Equipe Limpeza"/>
             </div>
@@ -273,8 +333,8 @@ function TaskForm({ ciclo, tarefaId, tarefas, onClose, onSaved }) {
 }
 
 function exportCSV(tarefas, ciclo) {
-  const cols = ['setor','area','atividade','equipe','prioridade','status','observacoes'];
-  const hdr  = 'Setor,Área,Atividade,Responsável,Prioridade,Status,Observações';
+  const cols = ['setor','area','atividade','equipe','prioridade','status','data_agendada','data_limite','observacoes'];
+  const hdr  = 'Setor,Area,Atividade,Responsavel,Prioridade,Status,Data agendada,Data limite,Observacoes';
   const rows = tarefas.map(r => cols.map(k=>`"${(r[k]||'').replace(/"/g,'""')}"`).join(','));
   const a    = document.createElement('a');
   a.href     = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent([hdr,...rows].join('\n'));

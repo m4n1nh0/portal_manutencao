@@ -13,11 +13,13 @@ const val = (req,res,next) => {
   if (!e.isEmpty()) return res.status(400).json({ erros: e.array() });
   next();
 };
+const ADMIN_PERFIS = ['admin','supervisor','sindico'];
+const APROVADORES = ['admin','supervisor','sindico','conselho','subsindico'];
 
 router.use(autenticar);
 
 // ── LISTAR ────────────────────────────────────────────────────
-router.get('/', exigirPerfil('admin','sindico','subsindico'), async (req, res) => {
+router.get('/', exigirPerfil(...APROVADORES), async (req, res) => {
   const { status, perfil, busca } = req.query;
   let sql = `SELECT id,login,nome,email,cpf,telefone,perfil,status,unidade,
                     criado_em,aprovado_em,ultimo_login,ativo,
@@ -27,7 +29,7 @@ router.get('/', exigirPerfil('admin','sindico','subsindico'), async (req, res) =
   if (status) { sql += ' AND status=?'; p.push(status); }
   if (perfil) { sql += ' AND perfil=?'; p.push(perfil); }
   if (busca)  { sql += ' AND (nome LIKE ? OR email LIKE ? OR unidade LIKE ?)'; p.push(`%${busca}%`,`%${busca}%`,`%${busca}%`); }
-  if (!['admin'].includes(req.usuario.perfil)) { sql += ' AND perfil=? AND status=?'; p.push('morador','pendente'); }
+  if (!ADMIN_PERFIS.includes(req.usuario.perfil)) { sql += ' AND perfil=? AND status=?'; p.push('morador','pendente'); }
   sql += ' ORDER BY FIELD(status,"pendente","aprovado","suspenso","rejeitado"), criado_em DESC';
   const [rows] = await db.query(sql, p);
   res.json({ usuarios: rows });
@@ -44,7 +46,7 @@ router.get('/pendentes', exigir('canApprove'), async (req, res) => {
 });
 
 // FIX 11: auditoria/geral ANTES de /:id/auditoria para não ser capturado como :id
-router.get('/auditoria/geral', exigirPerfil('admin'), async (req, res) => {
+router.get('/auditoria/geral', exigirPerfil(...ADMIN_PERFIS), async (req, res) => {
   const { acao, resultado, limite = 50 } = req.query;
   let sql = `SELECT a.*,u.login FROM audit_log a LEFT JOIN usuarios u ON u.id=a.usuario_id WHERE 1=1`;
   const p = [];
@@ -84,7 +86,7 @@ router.patch('/:id/rejeitar', exigir('canApprove'),
 );
 
 // ── SUSPENDER / REATIVAR ──────────────────────────────────────
-router.patch('/:id/status', exigirPerfil('admin'), async (req, res) => {
+router.patch('/:id/status', exigirPerfil(...ADMIN_PERFIS), async (req, res) => {
   const { status } = req.body;
   if (!['aprovado','suspenso'].includes(status)) return res.status(400).json({ erro: 'Status inválido.' });
   if (req.params.id === req.usuario.id) return res.status(400).json({ erro: 'Você não pode alterar seu próprio status.' });
@@ -95,7 +97,7 @@ router.patch('/:id/status', exigirPerfil('admin'), async (req, res) => {
 });
 
 // ── CRIAR USUÁRIO INTERNO ─────────────────────────────────────
-router.post('/', exigirPerfil('admin'),
+router.post('/', exigirPerfil(...ADMIN_PERFIS),
   body('login').trim().isLength({ min: 3 }),
   body('nome').trim().notEmpty(),
   body('email').isEmail(),
@@ -119,7 +121,7 @@ router.post('/', exigirPerfil('admin'),
 );
 
 // ── EDITAR ────────────────────────────────────────────────────
-router.put('/:id', exigirPerfil('admin'), async (req, res) => {
+router.put('/:id', exigirPerfil(...ADMIN_PERFIS), async (req, res) => {
   const { nome, email, perfil, telefone, unidade } = req.body;
   await db.query('UPDATE usuarios SET nome=?,email=?,perfil=?,telefone=?,unidade=? WHERE id=?',
     [nome, email, perfil, telefone || null, unidade || null, req.params.id]);
@@ -129,7 +131,7 @@ router.put('/:id', exigirPerfil('admin'), async (req, res) => {
 });
 
 // ── RESETAR SENHA ─────────────────────────────────────────────
-router.patch('/:id/reset-senha', exigirPerfil('admin'), async (req, res) => {
+router.patch('/:id/reset-senha', exigirPerfil(...ADMIN_PERFIS), async (req, res) => {
   // FIX: crypto já importado no topo
   const nova = crypto.randomBytes(6).toString('hex') + '@1A';
   const hash = await bcrypt.hash(nova, 12);
@@ -140,7 +142,7 @@ router.patch('/:id/reset-senha', exigirPerfil('admin'), async (req, res) => {
 });
 
 // ── AUDIT LOG DO USUÁRIO ──────────────────────────────────────
-router.get('/:id/auditoria', exigirPerfil('admin'), async (req, res) => {
+router.get('/:id/auditoria', exigirPerfil(...ADMIN_PERFIS), async (req, res) => {
   const [rows] = await db.query(
     `SELECT id,acao,recurso,detalhe,ip,resultado,criado_em FROM audit_log
      WHERE usuario_id=? ORDER BY criado_em DESC LIMIT 100`,

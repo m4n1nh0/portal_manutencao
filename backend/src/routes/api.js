@@ -8,6 +8,105 @@ const { autenticar, exigir, exigirPerfil, audit } = require('../middleware/auth'
 const val = (req,res,next) => { const e=validationResult(req); if(!e.isEmpty()) return res.status(400).json({erros:e.array()}); next(); };
 const ok  = (res,data,c=200) => res.status(c).json(data);
 const CICLOS_TAREFA = ['diario','semanal','mensal','anual','todas'];
+const ADMIN_OPERACIONAL = ['admin','supervisor','sindico'];
+
+function isoDateOrNull(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.valueOf())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const text = String(value).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+function addDateFilters(req, sql, params, alias = 't') {
+  const inicio = isoDateOrNull(req.query.data_inicio || req.query.inicio);
+  const fim = isoDateOrNull(req.query.data_fim || req.query.fim);
+  const expr = `COALESCE(${alias}.data_agendada, DATE(${alias}.criado_em))`;
+  if (inicio) {
+    sql += ` AND ${expr} >= ?`;
+    params.push(inicio);
+  }
+  if (fim) {
+    sql += ` AND ${expr} <= ?`;
+    params.push(fim);
+  }
+  if (req.query.atrasadas === 'true') {
+    sql += ` AND ${alias}.status <> 'Concluído' AND ${alias}.data_limite IS NOT NULL AND ${alias}.data_limite < CURDATE()`;
+  }
+  return sql;
+}
+
+function dashboardDateWhere(req, alias = 't') {
+  const params = [];
+  const where = addDateFilters(req, '', params, alias);
+  return { where, params };
+}
+
+function prioridadeTarefa(value) {
+  if (value === 'Media') return 'Média';
+  return ['Alta','Média','Baixa'].includes(value) ? value : '';
+}
+
+function normalizaAtividades(input) {
+  const rows = Array.isArray(input) ? input : [];
+  return rows
+    .map((item, index) => {
+      const titulo = String(item?.titulo || '').trim();
+      const descricao = String(item?.descricao || '').trim();
+      if (!titulo && !descricao) return null;
+      return {
+        id: item?.id || uuidv4(),
+        ordem: Number.isInteger(Number(item?.ordem)) ? Number(item.ordem) : index + 1,
+        titulo: titulo || 'Atividade',
+        descricao: descricao || titulo,
+        equipe: String(item?.equipe || '').trim() || null,
+        prioridade: String(item?.prioridade || '').trim(),
+        ativo: item?.ativo === false || item?.ativo === 0 || item?.ativo === '0' ? 0 : 1,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.ordem - b.ordem)
+    .map((item, index) => ({ ...item, ordem: index + 1 }));
+}
+
+async function listaCiclo() {
+  const [dias] = await db.query('SELECT id,dia_ciclo,setor,trecho FROM ciclo_8dias ORDER BY dia_ciclo,setor');
+  if (!dias.length) return [];
+  const [atividades] = await db.query(
+    `SELECT id,ciclo_id,ordem,titulo,descricao,equipe,prioridade,ativo
+     FROM ciclo_atividades
+     WHERE ciclo_id IN (?)
+     ORDER BY ciclo_id,ordem,titulo`,
+    [dias.map((d) => d.id)]
+  );
+  const porDia = atividades.reduce((acc, atividade) => {
+    (acc[atividade.ciclo_id] ||= []).push(atividade);
+    return acc;
+  }, {});
+  return dias.map((dia) => ({ ...dia, atividades: porDia[dia.id] || [] }));
+}
+
+async function salvaAtividades(conn, cicloId, atividades) {
+  await conn.query('DELETE FROM ciclo_atividades WHERE ciclo_id=?', [cicloId]);
+  for (const atividade of atividades) {
+    await conn.query(
+      `INSERT INTO ciclo_atividades
+        (id,ciclo_id,ordem,titulo,descricao,equipe,prioridade,ativo)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [
+        atividade.id,
+        cicloId,
+        atividade.ordem,
+        atividade.titulo,
+        atividade.descricao,
+        atividade.equipe,
+        atividade.prioridade,
+        atividade.ativo,
+      ]
+    );
+  }
+}
 
 router.use(autenticar);
 
@@ -16,26 +115,27 @@ router.use(autenticar);
 // ══════════════════════════════════════════════════════════════
 router.get('/dashboard', async (req, res) => {
   try {
+    const dateFilter = dashboardDateWhere(req, 't');
     const [totais] = await db.query(`
       SELECT ciclo,COUNT(*) total,
         SUM(status='Concluído') concluidas,
         SUM(status='Pendente') pendentes,
         SUM(prioridade='Alta' AND status!='Concluído') alta_pendente
-      FROM tarefas GROUP BY ciclo`);
+      FROM tarefas t WHERE 1=1 ${dateFilter.where} GROUP BY ciclo`, dateFilter.params);
 
     const [recentes] = await db.query(`
       SELECT t.id,t.ciclo,t.setor,t.atividade,t.status,t.atualizado_em,u.nome AS por
       FROM tarefas t LEFT JOIN usuarios u ON u.id=t.atualizado_por
-      WHERE t.status='Concluído' ORDER BY t.atualizado_em DESC LIMIT 8`);
+      WHERE t.status='Concluído' ${dateFilter.where} ORDER BY t.atualizado_em DESC LIMIT 8`, dateFilter.params);
 
     const [alta] = await db.query(`
-      SELECT id,ciclo,setor,atividade,equipe,status,prioridade FROM tarefas
-      WHERE prioridade='Alta'
-      ORDER BY FIELD(status,'Pendente','Em Andamento','Em Revisão','Concluído') LIMIT 10`);
+      SELECT id,ciclo,setor,atividade,equipe,status,prioridade,data_agendada,data_limite FROM tarefas t
+      WHERE prioridade='Alta' ${dateFilter.where}
+      ORDER BY FIELD(status,'Pendente','Em Andamento','Em Revisão','Concluído') LIMIT 10`, dateFilter.params);
 
     // Pendentes de aprovação (só admin/síndico)
     let pendentes_aprovacao = 0;
-    if (['admin','sindico','subsindico'].includes(req.usuario.perfil)) {
+    if (req.permissoes.canApprove) {
       const [[r]] = await db.query(`SELECT COUNT(*) AS n FROM usuarios WHERE status='pendente'`);
       pendentes_aprovacao = r.n;
     }
@@ -66,8 +166,8 @@ router.get('/tarefas', async (req, res) => {
   if (req.query.status)      { sql+=' AND t.status=?';      p.push(req.query.status); }
   if (req.query.prioridade)  { sql+=' AND t.prioridade=?';  p.push(req.query.prioridade); }
   if (req.query.busca)       { sql+=' AND t.atividade LIKE ?'; p.push(`%${req.query.busca}%`); }
-  sql+=" ORDER BY FIELD(t.prioridade,'Alta','Média','Baixa',''),t.criado_em ASC";
-  sql = sql.replace('t.criado_em ASC', 't.setor ASC,t.criado_em ASC');
+  sql = addDateFilters(req, sql, p, 't');
+  sql+=" ORDER BY COALESCE(t.data_agendada, DATE(t.criado_em)) ASC,FIELD(t.prioridade,'Alta','Média','Baixa',''),t.setor ASC,t.criado_em ASC";
   const [rows] = await db.query(sql, p);
   ok(res, { tarefas: rows });
 });
@@ -76,13 +176,17 @@ router.post('/tarefas', exigir('canAdd'),
   body('ciclo').isIn(CICLOS_TAREFA),
   body('setor').trim().notEmpty(),
   body('atividade').trim().notEmpty(),
+  body('data_agendada').optional({ nullable:true, checkFalsy:true }).isISO8601().toDate(),
+  body('data_limite').optional({ nullable:true, checkFalsy:true }).isISO8601().toDate(),
   val, async (req, res) => {
     const { ciclo,setor,area,atividade,equipe,prioridade,status,observacoes } = req.body;
+    const dataAgendada = isoDateOrNull(req.body.data_agendada);
+    const dataLimite = isoDateOrNull(req.body.data_limite);
     const id = uuidv4();
     await db.query(
-      `INSERT INTO tarefas (id,ciclo,setor,area,atividade,equipe,prioridade,status,observacoes,atualizado_por)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      [id,ciclo,setor,area||'',atividade,equipe||'',prioridade||'',status||'Pendente',observacoes||'',req.usuario.id]
+      `INSERT INTO tarefas (id,ciclo,setor,area,atividade,equipe,prioridade,status,observacoes,data_agendada,data_limite,origem_agendamento,atualizado_por)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [id,ciclo,setor,area||'',atividade,equipe||'',prioridade||'',status||'Pendente',observacoes||'',dataAgendada,dataLimite,'manual',req.usuario.id]
     );
     await db.query('INSERT INTO historico_tarefas (id,tarefa_id,usuario_id,acao) VALUES (?,?,?,?)',
       [uuidv4(),id,req.usuario.id,'criado']);
@@ -96,15 +200,19 @@ router.put('/tarefas/:id', exigir('canEdit'),
   body('ciclo').optional().isIn(CICLOS_TAREFA),
   body('setor').trim().notEmpty(),
   body('atividade').trim().notEmpty(),
+  body('data_agendada').optional({ nullable:true, checkFalsy:true }).isISO8601().toDate(),
+  body('data_limite').optional({ nullable:true, checkFalsy:true }).isISO8601().toDate(),
   val, async (req, res) => {
   const { ciclo,setor,area,atividade,equipe,prioridade,status,observacoes } = req.body;
+  const dataAgendada = isoDateOrNull(req.body.data_agendada);
+  const dataLimite = isoDateOrNull(req.body.data_limite);
   const [[antes]] = await db.query('SELECT status,ciclo FROM tarefas WHERE id=?',[req.params.id]);
   const novoCiclo = ciclo || antes?.ciclo;
   const novoStatus = status || antes?.status;
   if (!antes) return res.status(404).json({erro:'Não encontrada.'});
   await db.query(
-    `UPDATE tarefas SET ciclo=?,setor=?,area=?,atividade=?,equipe=?,prioridade=?,status=?,observacoes=?,atualizado_por=? WHERE id=?`,
-    [novoCiclo,setor,area||'',atividade,equipe||'',prioridade||'',novoStatus,observacoes||'',req.usuario.id,req.params.id]
+    `UPDATE tarefas SET ciclo=?,setor=?,area=?,atividade=?,equipe=?,prioridade=?,status=?,observacoes=?,data_agendada=?,data_limite=?,atualizado_por=? WHERE id=?`,
+    [novoCiclo,setor,area||'',atividade,equipe||'',prioridade||'',novoStatus,observacoes||'',dataAgendada,dataLimite,req.usuario.id,req.params.id]
   );
   if (antes.status!==novoStatus) {
     await db.query('INSERT INTO historico_tarefas (id,tarefa_id,usuario_id,campo,valor_antes,valor_depois,acao) VALUES (?,?,?,?,?,?,?)',
@@ -150,65 +258,86 @@ router.get('/tarefas/:id/historico', async (req, res) => {
 // CICLO DINAMICO
 // ══════════════════════════════════════════════════════════════
 router.get('/ciclo', async (_, res) => {
-  const [rows] = await db.query('SELECT * FROM ciclo_8dias ORDER BY dia_ciclo,setor');
-  ok(res,{ciclo:rows});
+  ok(res,{ciclo: await listaCiclo()});
 });
 
-router.post('/ciclo', exigirPerfil('admin','supervisor'),
+router.post('/ciclo', exigirPerfil(...ADMIN_OPERACIONAL),
   body('dia_ciclo').isInt({ min: 1, max: 365 }),
   body('setor').trim().notEmpty().isLength({ max: 80 }),
   body('trecho').optional({ nullable:true }).trim().isLength({ max: 160 }),
-  body('limpeza').optional({ nullable:true }).trim(),
-  body('rocagem').optional({ nullable:true }).trim(),
-  body('inspecao').optional({ nullable:true }).trim(),
+  body('atividades').optional({ nullable:true }).isArray({ max: 50 }),
   val, async (req, res) => {
-    const { dia_ciclo,setor,trecho,limpeza,rocagem,inspecao } = req.body;
+    const { dia_ciclo,setor,trecho } = req.body;
+    const atividades = normalizaAtividades(req.body.atividades);
+    if (!atividades.length) return res.status(400).json({erro:'Inclua pelo menos uma atividade no ciclo.'});
+
+    const conn = await db.getConnection();
     try {
-      await db.query(
-        `INSERT INTO ciclo_8dias (dia_ciclo,setor,trecho,limpeza,rocagem,inspecao)
-         VALUES (?,?,?,?,?,?)`,
-        [parseInt(dia_ciclo, 10),setor.trim(),trecho?.trim()||null,limpeza?.trim()||null,rocagem?.trim()||null,inspecao?.trim()||null]
+      await conn.beginTransaction();
+      const [insert] = await conn.query(
+        `INSERT INTO ciclo_8dias (dia_ciclo,setor,trecho)
+         VALUES (?,?,?)`,
+        [parseInt(dia_ciclo, 10),setor.trim(),trecho?.trim()||null]
       );
-      const [[item]] = await db.query('SELECT * FROM ciclo_8dias WHERE dia_ciclo=?',[parseInt(dia_ciclo, 10)]);
-      await audit(req,'ciclo_criado','ciclo_8dias',item.id,{dia_ciclo,setor});
-      ok(res,{item},201);
+      await salvaAtividades(conn, insert.insertId, atividades);
+      await conn.commit();
+      const [[item]] = await db.query('SELECT id,dia_ciclo,setor,trecho FROM ciclo_8dias WHERE id=?',[insert.insertId]);
+      const cicloRows = await listaCiclo();
+      const fullItem = cicloRows.find((row) => row.id === insert.insertId);
+      await audit(req,'ciclo_criado','ciclo_8dias',item.id,{dia_ciclo,setor,atividades:atividades.length});
+      ok(res,{item: fullItem || item},201);
     } catch(e) {
+      await conn.rollback();
       if (e.code === 'ER_DUP_ENTRY') return res.status(409).json({erro:'Dia do ciclo ja cadastrado.'});
       console.error(e);
       return res.status(500).json({erro:'Erro interno.'});
+    } finally {
+      conn.release();
     }
   }
 );
 
-router.put('/ciclo/:id', exigirPerfil('admin','supervisor'),
+router.put('/ciclo/:id', exigirPerfil(...ADMIN_OPERACIONAL),
   body('dia_ciclo').isInt({ min: 1, max: 365 }),
   body('setor').trim().notEmpty().isLength({ max: 80 }),
   body('trecho').optional({ nullable:true }).trim().isLength({ max: 160 }),
-  body('limpeza').optional({ nullable:true }).trim(),
-  body('rocagem').optional({ nullable:true }).trim(),
-  body('inspecao').optional({ nullable:true }).trim(),
+  body('atividades').optional({ nullable:true }).isArray({ max: 50 }),
   val, async (req, res) => {
-    const { dia_ciclo,setor,trecho,limpeza,rocagem,inspecao } = req.body;
+    const { dia_ciclo,setor,trecho } = req.body;
+    const atividades = normalizaAtividades(req.body.atividades);
+    if (!atividades.length) return res.status(400).json({erro:'Inclua pelo menos uma atividade no ciclo.'});
+
+    const conn = await db.getConnection();
     try {
-      const [r] = await db.query(
+      await conn.beginTransaction();
+      const [r] = await conn.query(
         `UPDATE ciclo_8dias
-         SET dia_ciclo=?,setor=?,trecho=?,limpeza=?,rocagem=?,inspecao=?
+         SET dia_ciclo=?,setor=?,trecho=?
          WHERE id=?`,
-        [parseInt(dia_ciclo, 10),setor.trim(),trecho?.trim()||null,limpeza?.trim()||null,rocagem?.trim()||null,inspecao?.trim()||null,req.params.id]
+        [parseInt(dia_ciclo, 10),setor.trim(),trecho?.trim()||null,req.params.id]
       );
-      if (!r.affectedRows) return res.status(404).json({erro:'Item do ciclo nao encontrado.'});
-      const [[item]] = await db.query('SELECT * FROM ciclo_8dias WHERE id=?',[req.params.id]);
-      await audit(req,'ciclo_atualizado','ciclo_8dias',req.params.id,{dia_ciclo,setor});
+      if (!r.affectedRows) {
+        await conn.rollback();
+        return res.status(404).json({erro:'Item do ciclo nao encontrado.'});
+      }
+      await salvaAtividades(conn, req.params.id, atividades);
+      await conn.commit();
+      const ciclo = await listaCiclo();
+      const item = ciclo.find((row) => String(row.id) === String(req.params.id));
+      await audit(req,'ciclo_atualizado','ciclo_8dias',req.params.id,{dia_ciclo,setor,atividades:atividades.length});
       ok(res,{item});
     } catch(e) {
+      await conn.rollback();
       if (e.code === 'ER_DUP_ENTRY') return res.status(409).json({erro:'Dia do ciclo ja cadastrado.'});
       console.error(e);
       return res.status(500).json({erro:'Erro interno.'});
+    } finally {
+      conn.release();
     }
   }
 );
 
-router.delete('/ciclo/:id', exigirPerfil('admin','supervisor'), async (req, res) => {
+router.delete('/ciclo/:id', exigirPerfil(...ADMIN_OPERACIONAL), async (req, res) => {
   const [[item]] = await db.query('SELECT id,dia_ciclo,setor FROM ciclo_8dias WHERE id=?',[req.params.id]);
   if (!item) return res.status(404).json({erro:'Item do ciclo nao encontrado.'});
   await db.query('DELETE FROM ciclo_8dias WHERE id=?',[req.params.id]);
@@ -235,7 +364,7 @@ router.get('/quadras', async (_, res) => {
   ok(res, { quadras: quadras.map(q => ({ ...q, ruas: porQuadra[q.id] || [] })) });
 });
 
-router.post('/quadras', exigirPerfil('admin','supervisor'),
+router.post('/quadras', exigirPerfil(...ADMIN_OPERACIONAL),
   body('codigo').trim().notEmpty().isLength({ max: 3 }),
   body('nome').optional({ nullable:true }).trim().isLength({ max: 80 }),
   body('descricao').optional({ nullable:true }).trim().isLength({ max: 255 }),
@@ -256,7 +385,7 @@ router.post('/quadras', exigirPerfil('admin','supervisor'),
   }
 );
 
-router.put('/quadras/:id', exigirPerfil('admin','supervisor'),
+router.put('/quadras/:id', exigirPerfil(...ADMIN_OPERACIONAL),
   body('codigo').trim().notEmpty().isLength({ max: 3 }),
   body('nome').trim().notEmpty().isLength({ max: 80 }),
   body('descricao').optional({ nullable:true }).trim().isLength({ max: 255 }),
@@ -282,14 +411,14 @@ router.put('/quadras/:id', exigirPerfil('admin','supervisor'),
   }
 );
 
-router.delete('/quadras/:id', exigirPerfil('admin','supervisor'), async (req, res) => {
+router.delete('/quadras/:id', exigirPerfil(...ADMIN_OPERACIONAL), async (req, res) => {
   const [r] = await db.query('DELETE FROM quadras WHERE id=?',[req.params.id]);
   if (!r.affectedRows) return res.status(404).json({erro:'Quadra nao encontrada.'});
   await audit(req,'quadra_excluida','quadra',req.params.id,null);
   ok(res,{mensagem:'Quadra removida.'});
 });
 
-router.post('/quadras/:id/ruas', exigirPerfil('admin','supervisor'),
+router.post('/quadras/:id/ruas', exigirPerfil(...ADMIN_OPERACIONAL),
   body('nome').trim().notEmpty().isLength({ max: 80 }),
   body('ordem').optional({ nullable:true }).isInt({ min: 1, max: 99 }),
   val, async (req, res) => {
@@ -311,7 +440,7 @@ router.post('/quadras/:id/ruas', exigirPerfil('admin','supervisor'),
   }
 );
 
-router.put('/ruas/:id', exigirPerfil('admin','supervisor'),
+router.put('/ruas/:id', exigirPerfil(...ADMIN_OPERACIONAL),
   body('nome').trim().notEmpty().isLength({ max: 80 }),
   body('ordem').isInt({ min: 1, max: 99 }),
   body('ativo').optional().isBoolean(),
@@ -332,7 +461,7 @@ router.put('/ruas/:id', exigirPerfil('admin','supervisor'),
   }
 );
 
-router.delete('/ruas/:id', exigirPerfil('admin','supervisor'), async (req, res) => {
+router.delete('/ruas/:id', exigirPerfil(...ADMIN_OPERACIONAL), async (req, res) => {
   const [r] = await db.query('DELETE FROM ruas WHERE id=?',[req.params.id]);
   if (!r.affectedRows) return res.status(404).json({erro:'Rua nao encontrada.'});
   await audit(req,'rua_excluida','rua',req.params.id,null);
@@ -345,7 +474,7 @@ router.get('/equipes', async (_, res) => {
   ok(res,{equipes});
 });
 
-router.post('/equipes', exigirPerfil('admin','supervisor'),
+router.post('/equipes', exigirPerfil(...ADMIN_OPERACIONAL),
   body('nome').trim().notEmpty().isLength({ max: 100 }),
   body('tipo').optional({ nullable:true }).trim().isLength({ max: 40 }),
   body('contato').optional({ nullable:true }).trim().isLength({ max: 120 }),
@@ -365,7 +494,7 @@ router.post('/equipes', exigirPerfil('admin','supervisor'),
   }
 );
 
-router.put('/equipes/:id', exigirPerfil('admin','supervisor'),
+router.put('/equipes/:id', exigirPerfil(...ADMIN_OPERACIONAL),
   body('nome').trim().notEmpty().isLength({ max: 100 }),
   body('tipo').optional({ nullable:true }).trim().isLength({ max: 40 }),
   body('contato').optional({ nullable:true }).trim().isLength({ max: 120 }),
@@ -386,7 +515,7 @@ router.put('/equipes/:id', exigirPerfil('admin','supervisor'),
   }
 );
 
-router.delete('/equipes/:id', exigirPerfil('admin','supervisor'), async (req, res) => {
+router.delete('/equipes/:id', exigirPerfil(...ADMIN_OPERACIONAL), async (req, res) => {
   const [r] = await db.query('DELETE FROM equipes WHERE id=?',[req.params.id]);
   if (!r.affectedRows) return res.status(404).json({erro:'Responsavel nao encontrado.'});
   await audit(req,'equipe_excluida','equipe',req.params.id,null);
@@ -399,7 +528,7 @@ router.get('/locais', async (_, res) => {
   ok(res,{locais});
 });
 
-router.post('/locais', exigirPerfil('admin','supervisor'),
+router.post('/locais', exigirPerfil(...ADMIN_OPERACIONAL),
   body('nome').trim().notEmpty().isLength({ max: 120 }),
   body('categoria').optional({ nullable:true }).trim().isLength({ max: 60 }),
   body('descricao').optional({ nullable:true }).trim().isLength({ max: 255 }),
@@ -419,7 +548,7 @@ router.post('/locais', exigirPerfil('admin','supervisor'),
   }
 );
 
-router.put('/locais/:id', exigirPerfil('admin','supervisor'),
+router.put('/locais/:id', exigirPerfil(...ADMIN_OPERACIONAL),
   body('nome').trim().notEmpty().isLength({ max: 120 }),
   body('categoria').optional({ nullable:true }).trim().isLength({ max: 60 }),
   body('descricao').optional({ nullable:true }).trim().isLength({ max: 255 }),
@@ -440,7 +569,7 @@ router.put('/locais/:id', exigirPerfil('admin','supervisor'),
   }
 );
 
-router.delete('/locais/:id', exigirPerfil('admin','supervisor'), async (req, res) => {
+router.delete('/locais/:id', exigirPerfil(...ADMIN_OPERACIONAL), async (req, res) => {
   const [r] = await db.query('DELETE FROM locais WHERE id=?',[req.params.id]);
   if (!r.affectedRows) return res.status(404).json({erro:'Area/local nao encontrado.'});
   await audit(req,'local_excluido','local',req.params.id,null);
@@ -453,7 +582,7 @@ router.get('/modelos-tarefas', async (_, res) => {
   ok(res,{modelos});
 });
 
-router.post('/modelos-tarefas', exigirPerfil('admin','supervisor'),
+router.post('/modelos-tarefas', exigirPerfil(...ADMIN_OPERACIONAL),
   body('ciclo').isIn(CICLOS_TAREFA),
   body('setor').trim().notEmpty().isLength({ max: 60 }),
   body('area').optional({ nullable:true }).trim().isLength({ max: 120 }),
@@ -482,7 +611,7 @@ router.post('/modelos-tarefas', exigirPerfil('admin','supervisor'),
   }
 );
 
-router.put('/modelos-tarefas/:id', exigirPerfil('admin','supervisor'),
+router.put('/modelos-tarefas/:id', exigirPerfil(...ADMIN_OPERACIONAL),
   body('ciclo').isIn(CICLOS_TAREFA),
   body('setor').trim().notEmpty().isLength({ max: 60 }),
   body('area').optional({ nullable:true }).trim().isLength({ max: 120 }),
@@ -509,23 +638,123 @@ router.put('/modelos-tarefas/:id', exigirPerfil('admin','supervisor'),
   }
 );
 
-router.delete('/modelos-tarefas/:id', exigirPerfil('admin','supervisor'), async (req, res) => {
+router.delete('/modelos-tarefas/:id', exigirPerfil(...ADMIN_OPERACIONAL), async (req, res) => {
   const [r] = await db.query('DELETE FROM tarefa_modelos WHERE id=?',[req.params.id]);
   if (!r.affectedRows) return res.status(404).json({erro:'Modelo de tarefa nao encontrado.'});
   await audit(req,'modelo_tarefa_excluido','tarefa_modelo',req.params.id,null);
   ok(res,{mensagem:'Modelo de tarefa removido.'});
 });
 
+router.get('/agendamentos', async (req, res) => {
+  const params = [];
+  let sql = `SELECT t.*,u.nome AS atualizado_por_nome
+             FROM tarefas t
+             LEFT JOIN usuarios u ON u.id=t.atualizado_por
+             WHERE 1=1`;
+  if (req.query.ciclo) {
+    if (!CICLOS_TAREFA.includes(req.query.ciclo)) return res.status(400).json({erro:'Ciclo invalido.'});
+    sql += ' AND t.ciclo=?';
+    params.push(req.query.ciclo);
+  }
+  sql = addDateFilters(req, sql, params, 't');
+  sql += ' ORDER BY COALESCE(t.data_agendada, DATE(t.criado_em)) ASC,t.setor ASC,t.atividade ASC';
+  const [tarefas] = await db.query(sql, params);
+  const resumoPorDia = tarefas.reduce((acc, tarefa) => {
+    const raw = tarefa.data_agendada || tarefa.criado_em;
+    const data = raw instanceof Date ? raw.toISOString().slice(0, 10) : String(raw).slice(0, 10);
+    const row = acc[data] || { data, total: 0, concluidas: 0, pendentes: 0 };
+    row.total += 1;
+    if (tarefa.status === 'Concluído') row.concluidas += 1;
+    else row.pendentes += 1;
+    acc[data] = row;
+    return acc;
+  }, {});
+  ok(res,{tarefas,resumo:Object.values(resumoPorDia)});
+});
+
+router.post('/agendamentos/gerar', exigirPerfil(...ADMIN_OPERACIONAL),
+  body('data_agendada').isISO8601(),
+  body('data_limite').optional({ nullable:true, checkFalsy:true }).isISO8601(),
+  body('ciclos').optional({ nullable:true }).isArray({ min: 1 }),
+  body('ciclos.*').optional().isIn(CICLOS_TAREFA),
+  val, async (req, res) => {
+    const dataAgendada = isoDateOrNull(req.body.data_agendada);
+    const dataLimite = isoDateOrNull(req.body.data_limite) || dataAgendada;
+    const ciclos = Array.isArray(req.body.ciclos) && req.body.ciclos.length
+      ? req.body.ciclos.filter((ciclo) => CICLOS_TAREFA.includes(ciclo))
+      : ['diario','semanal','mensal','anual','todas'];
+    if (!ciclos.length) return res.status(400).json({erro:'Selecione ao menos um ciclo.'});
+
+    const [modelos] = await db.query(
+      `SELECT * FROM tarefa_modelos
+       WHERE ativo=1 AND ciclo IN (?)
+       ORDER BY ciclo,setor,atividade`,
+      [ciclos]
+    );
+    if (!modelos.length) return res.status(404).json({erro:'Nenhum modelo ativo encontrado para os ciclos selecionados.'});
+
+    let criadas = 0;
+    let ignoradas = 0;
+    const tarefas = [];
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+      for (const modelo of modelos) {
+        const [[existente]] = await conn.query(
+          `SELECT id FROM tarefas
+           WHERE ciclo=? AND setor=? AND COALESCE(area,'')=? AND atividade=?
+             AND COALESCE(data_agendada, DATE(criado_em))=?`,
+          [modelo.ciclo,modelo.setor,modelo.area || '',modelo.atividade,dataAgendada]
+        );
+        if (existente) {
+          ignoradas += 1;
+          continue;
+        }
+        const id = uuidv4();
+        await conn.query(
+          `INSERT INTO tarefas
+            (id,ciclo,setor,area,atividade,equipe,prioridade,status,observacoes,data_agendada,data_limite,origem_agendamento,atualizado_por)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [
+            id,
+            modelo.ciclo,
+            modelo.setor,
+            modelo.area || '',
+            modelo.atividade,
+            modelo.equipe || '',
+            prioridadeTarefa(modelo.prioridade),
+            'Pendente',
+            'Gerada pelo modulo de agendamento.',
+            dataAgendada,
+            dataLimite,
+            'modelo',
+            req.usuario.id,
+          ]
+        );
+        tarefas.push(id);
+        criadas += 1;
+      }
+      await conn.commit();
+      await audit(req,'agendamento_gerado','tarefa',null,{data_agendada:dataAgendada,data_limite:dataLimite,ciclos,criadas,ignoradas});
+      ok(res,{mensagem:`${criadas} tarefa(s) agendada(s).`,criadas,ignoradas,tarefas});
+    } catch(e) {
+      await conn.rollback();
+      console.error(e);
+      res.status(500).json({erro:'Erro ao gerar agendamento.'});
+    } finally {
+      conn.release();
+    }
+  }
+);
+
 // ══════════════════════════════════════════════════════════════
 // COMPROVAÇÕES FOTOGRÁFICAS
 // ══════════════════════════════════════════════════════════════
-const FOTO_PERFIS = ['admin','supervisor','sindico','subsindico','campo'];
-
 // FIX: DELETE /foto/:id ANTES de GET /:tarefaId (evita captura de "foto" como tarefaId)
 router.delete('/comprovacoes/foto/:id', async (req, res) => {
   const [[f]] = await db.query('SELECT * FROM comprovacoes WHERE id=?',[req.params.id]);
   if (!f) return res.status(404).json({erro:'Não encontrada.'});
-  if (f.usuario_id!==req.usuario.id && req.usuario.perfil!=='admin')
+  if (f.usuario_id!==req.usuario.id && !ADMIN_OPERACIONAL.includes(req.usuario.perfil))
     return res.status(403).json({erro:'Sem permissão.'});
   await storage.del(f.storage_key);
   await db.query('DELETE FROM comprovacoes WHERE id=?',[req.params.id]);
@@ -545,7 +774,7 @@ router.get('/comprovacoes/:tarefaId', async (req, res) => {
 });
 
 router.post('/comprovacoes/:tarefaId',
-  (req,res,next) => !FOTO_PERFIS.includes(req.usuario.perfil) ? res.status(403).json({erro:'Sem permissão.'}) : next(),
+  exigir('canPhoto'),
   (req,res,next) => storage.createUpload('comprovacoes')(req,res, e => e ? res.status(400).json({erro:e.message}) : next()),
   async (req, res) => {
     if (!req.files?.length) return res.status(400).json({erro:'Nenhum arquivo.'});
@@ -588,7 +817,7 @@ router.post('/observacoes',
 );
 
 router.get('/observacoes', async (req, res) => {
-  const podeVer = ['admin','supervisor','sindico','subsindico','conselho'].includes(req.usuario.perfil);
+  const podeVer = req.permissoes.seeAll;
   const [rows] = await db.query(
     `SELECT o.*,u.nome AS usuario_nome FROM observacoes_moradores o
      LEFT JOIN usuarios u ON u.id=o.usuario_id

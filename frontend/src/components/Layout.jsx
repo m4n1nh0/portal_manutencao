@@ -12,19 +12,20 @@ const PAGES = [
   { id:'mensal',    path:'/app/mensal',      icon:'ME', label:'Mensal',       roles:['admin','supervisor','sindico','subsindico','conselho','campo'], badge:true },
   { id:'anual',     path:'/app/anual',       icon:'AN', label:'Anual',        roles:['admin','supervisor','sindico','subsindico','conselho','campo'], badge:true },
   { id:'ciclo',     path:'/app/ciclo',       icon:'CI', label:'Ciclo',        roles:['admin','supervisor','sindico','subsindico','conselho','campo'] },
+  { id:'agendamento',path:'/app/agendamento',icon:'AG', label:'Agenda',       roles:['admin','supervisor','sindico'] },
   { id:'kanban',    path:'/app/kanban',      icon:'KB', label:'Kanban',       roles:['admin','supervisor','sindico','subsindico','conselho','campo'] },
-  { id:'aprovacoes',path:'/app/aprovacoes',  icon:'AP', label:'Aprovacoes',   roles:['admin','sindico'], badge:true },
-  { id:'auditoria', path:'/app/auditoria',   icon:'AU', label:'Auditoria',    roles:['admin'] },
-  { id:'usuarios',  path:'/app/usuarios',    icon:'US', label:'Usuarios',     roles:['admin'] },
+  { id:'aprovacoes',path:'/app/aprovacoes',  icon:'AP', label:'Aprovacoes',   roles:['admin','supervisor','sindico','conselho'], badge:true },
+  { id:'auditoria', path:'/app/auditoria',   icon:'AU', label:'Auditoria',    roles:['admin','supervisor','sindico'] },
+  { id:'usuarios',  path:'/app/usuarios',    icon:'US', label:'Usuarios',     roles:['admin','supervisor','sindico'] },
   { id:'morador',   path:'/app/morador',     icon:'HO', label:'Status do Dia',roles:['morador'] },
   { id:'perfil',    path:'/app/perfil',      icon:'PF', label:'Minha Conta',  roles:['admin','supervisor','sindico','subsindico','conselho','campo','morador'] },
-  { id:'quadras',   path:'/app/quadras',     icon:'QR', label:'Quadras/Ruas', roles:['admin','supervisor'] },
+  { id:'quadras',   path:'/app/quadras',     icon:'QR', label:'Quadras/Ruas', roles:['admin','supervisor','sindico'] },
   { id:'observacoes',path:'/app/observacoes',icon:'OB', label:'Observacoes',  roles:['admin','supervisor','sindico','subsindico','conselho'] },
-  { id:'cadastros', path:'/app/cadastros',   icon:'CA', label:'Cadastros',    roles:['admin','supervisor'] },
+  { id:'cadastros', path:'/app/cadastros',   icon:'CA', label:'Cadastros',    roles:['admin','supervisor','sindico'] },
 ];
 
 const BOTTOM_NAV = {
-  default: ['dashboard','diario','kanban','perfil'],
+  default: ['dashboard','diario','agendamento','perfil'],
   morador: ['morador','perfil'],
 };
 
@@ -126,7 +127,7 @@ export default function Layout({ children, title, badges={} }) {
             </div>
           </div>
           <div className="topbar-right">
-            {(badges.aprovacoes > 0) && ['admin','sindico'].includes(perfil) && (
+            {(badges.aprovacoes > 0) && user?.permissoes?.canApprove && (
               <button className="approval-alert" onClick={() => navigate('/app/aprovacoes')}>
                 <span>{badges.aprovacoes}</span>
                 pendente(s)
@@ -168,7 +169,7 @@ export default function Layout({ children, title, badges={} }) {
 function renderNavSections(pages, badges, navigate, isActive) {
   const sections = [
     { label:'Visao Geral', ids:['dashboard'] },
-    { label:'Manutencao', ids:['diario','semanal','mensal','anual','ciclo'] },
+    { label:'Manutencao', ids:['diario','semanal','mensal','anual','ciclo','agendamento'] },
     { label:'Ferramentas', ids:['kanban'] },
     { label:'Gestao', ids:['aprovacoes','usuarios','quadras','cadastros','observacoes','auditoria'] },
     { label:'Minha Area', ids:['morador','perfil'] },

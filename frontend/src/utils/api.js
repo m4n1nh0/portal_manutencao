@@ -64,7 +64,7 @@ const api = {
   register: (formData) => request('POST', '/auth/register', formData, true),
 
   // Dashboard
-  dashboard: () => request('GET', '/dashboard'),
+  dashboard: (params={}) => request('GET', '/dashboard?' + new URLSearchParams(params)),
 
   // Tarefas
   tarefas:      (params={})   => request('GET',    '/tarefas?' + new URLSearchParams(params)),
@@ -73,6 +73,8 @@ const api = {
   patchStatus:  (id, status)  => request('PATCH',  `/tarefas/${id}/status`, { status }),
   deletarTarefa:(id)          => request('DELETE', `/tarefas/${id}`),
   historico:    (id)          => request('GET',    `/tarefas/${id}/historico`),
+  agendamentos: (params={})   => request('GET',    '/agendamentos?' + new URLSearchParams(params)),
+  gerarAgendamento: (payload) => request('POST',   '/agendamentos/gerar', payload),
 
   // Ciclo
   ciclo:       ()      => request('GET', '/ciclo'),
