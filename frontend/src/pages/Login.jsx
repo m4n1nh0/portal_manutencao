@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import api from '../utils/api';
 import { PasswordInput } from '../components/UI';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function Login() {
   const { login }  = useAuth();
@@ -76,6 +77,7 @@ export default function Login() {
 
   return (
     <div id="login-screen">
+      <ThemeToggle className="auth-theme-toggle" />
       <div className="login-card" style={{ animation:'slideUp .4s cubic-bezier(.16,1,.3,1)' }}>
         <div className="login-logo">
           <span className="login-icon">🏘️</span>

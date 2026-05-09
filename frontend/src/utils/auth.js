@@ -1,12 +1,12 @@
-// utils/auth.js — Perfis e permissões (espelho do backend)
+// utils/auth.js - Perfis e permissoes (espelho do backend)
 export const ROLES = {
-  admin:      { label:'Administrador', emoji:'👑', color:'#f0b429' },
-  supervisor: { label:'Supervisor',    emoji:'🔧', color:'#58a6ff' },
-  sindico:    { label:'Síndico',       emoji:'📋', color:'#3fb950' },
-  subsindico: { label:'Subsíndico',    emoji:'📋', color:'#3fb950' },
-  conselho:   { label:'Conselho',      emoji:'👥', color:'#bc8cff' },
-  morador:    { label:'Morador',       emoji:'🏠', color:'#7d8590' },
-  campo:      { label:'Equipe Campo',  emoji:'⛏',  color:'#ff9500' },
+  admin:      { label:'Administrador', emoji:'AD', short:'Admin',      color:'#d99a18', rgb:'217 154 24', surface:'#fff4d6', ink:'#201404', signature:'Gestao total' },
+  supervisor: { label:'Supervisor',    emoji:'SV', short:'Supervisor', color:'#2f7bdc', rgb:'47 123 220', surface:'#e5f0ff', ink:'#06182f', signature:'Operacao' },
+  sindico:    { label:'Sindico',       emoji:'SI', short:'Sindico',    color:'#168a55', rgb:'22 138 85', surface:'#e2f7ed', ink:'#062115', signature:'Administracao' },
+  subsindico: { label:'Subsindico',    emoji:'SS', short:'Subsindico', color:'#0f8b8d', rgb:'15 139 141', surface:'#ddf7f7', ink:'#041f20', signature:'Apoio' },
+  conselho:   { label:'Conselho',      emoji:'CO', short:'Conselho',   color:'#7b5bd6', rgb:'123 91 214', surface:'#eee9ff', ink:'#17112d', signature:'Fiscalizacao' },
+  morador:    { label:'Morador',       emoji:'MO', short:'Morador',    color:'#4f6776', rgb:'79 103 118', surface:'#e8eef1', ink:'#101a20', signature:'Minha area' },
+  campo:      { label:'Equipe Campo',  emoji:'EC', short:'Campo',      color:'#d66f1f', rgb:'214 111 31', surface:'#fff0e2', ink:'#241105', signature:'Execucao' },
 };
 
 export const PERMISSOES = {
@@ -39,12 +39,12 @@ export function clearSession() {
   ['pm_token','pm_refresh','pm_user'].forEach(k => localStorage.removeItem(k));
 }
 
-// Valida força da senha
+// Valida forca da senha
 export function validaSenha(senha) {
   const erros = [];
-  if (senha.length < 8)          erros.push('Mínimo 8 caracteres');
-  if (!/[A-Z]/.test(senha))      erros.push('Uma letra maiúscula');
-  if (!/[0-9]/.test(senha))      erros.push('Um número');
+  if (senha.length < 8)          erros.push('Minimo 8 caracteres');
+  if (!/[A-Z]/.test(senha))      erros.push('Uma letra maiuscula');
+  if (!/[0-9]/.test(senha))      erros.push('Um numero');
   if (!/[^A-Za-z0-9]/.test(senha)) erros.push('Um caractere especial (!@#$%...)');
   return erros;
 }

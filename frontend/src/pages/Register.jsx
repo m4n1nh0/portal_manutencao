@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import api from '../utils/api';
 import { mascaraCPF, mascaraTel, validaSenha } from '../utils/auth';
 import { PasswordInput, SenhaForca, Input, InfoBox } from '../components/UI';
+import ThemeToggle from '../components/ThemeToggle';
 
 const STEPS = ['Dados Pessoais', 'Endereço', 'Documentos', 'Senha'];
 
@@ -69,6 +70,7 @@ export default function Register() {
 
   if (done) return (
     <div id="login-screen">
+      <ThemeToggle className="auth-theme-toggle" />
       <div className="login-card" style={{ textAlign:'center' }}>
         <div style={{ fontSize:'56px', marginBottom:'16px' }}>✅</div>
         <h2 style={{ fontFamily:'Syne,sans-serif', marginBottom:'10px' }}>Cadastro enviado!</h2>
@@ -84,7 +86,8 @@ export default function Register() {
   );
 
   return (
-    <div id="login-screen" style={{ padding:'20px', alignItems:'flex-start', paddingTop:'40px' }}>
+    <div id="login-screen" style={{ padding:'20px', alignItems:'flex-start', paddingTop:'72px' }}>
+      <ThemeToggle className="auth-theme-toggle" />
       <div className="login-card" style={{ maxWidth:'480px' }}>
         <div className="login-logo" style={{ marginBottom:'20px' }}>
           <span className="login-icon" style={{ fontSize:'40px' }}>🏘️</span>

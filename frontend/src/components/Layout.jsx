@@ -1,25 +1,25 @@
-// components/Layout.jsx — Shell principal da aplicação
+// components/Layout.jsx - Shell principal da aplicacao
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { useToast } from '../hooks/useToast';
 import { getRoleInfo } from '../utils/auth';
+import ThemeToggle from './ThemeToggle';
 
 const PAGES = [
-  { id:'dashboard', path:'/app',           icon:'📊', label:'Dashboard',         roles:['admin','supervisor','sindico','subsindico','conselho','campo'] },
-  { id:'diario',    path:'/app/diario',    icon:'📅', label:'Diário',            roles:['admin','supervisor','sindico','subsindico','conselho','campo'], badge:true },
-  { id:'semanal',   path:'/app/semanal',   icon:'📆', label:'Semanal',           roles:['admin','supervisor','sindico','subsindico','conselho','campo'], badge:true },
-  { id:'mensal',    path:'/app/mensal',    icon:'🗓️', label:'Mensal',            roles:['admin','supervisor','sindico','subsindico','conselho','campo'], badge:true },
-  { id:'anual',     path:'/app/anual',     icon:'📋', label:'Anual',             roles:['admin','supervisor','sindico','subsindico','conselho','campo'], badge:true },
-  { id:'ciclo',     path:'/app/ciclo',     icon:'🔄', label:'Ciclo 8 Dias',      roles:['admin','supervisor','sindico','subsindico','conselho','campo'] },
-  { id:'kanban',    path:'/app/kanban',    icon:'🗂️', label:'Kanban',            roles:['admin','supervisor','sindico','subsindico','conselho','campo'] },
-  { id:'aprovacoes',path:'/app/aprovacoes',icon:'✅', label:'Aprovações',        roles:['admin','sindico'], badge:true },
-  { id:'auditoria', path:'/app/auditoria', icon:'🔍', label:'Auditoria',         roles:['admin'] },
-  { id:'usuarios',  path:'/app/usuarios',  icon:'👤', label:'Usuários',          roles:['admin'] },
-  { id:'morador',   path:'/app/morador',   icon:'🏠', label:'Status do Dia',     roles:['morador'] },
-  { id:'quadras',   path:'/app/quadras',   icon:'Q', label:'Quadras/Ruas',       roles:['admin','supervisor'] },
-  { id:'observacoes',path:'/app/observacoes',icon:'!', label:'Observacoes',      roles:['admin','supervisor','sindico','subsindico','conselho'] },
-  { id:'cadastros', path:'/app/cadastros', icon:'+', label:'Cadastros',          roles:['admin','supervisor'] },
+  { id:'dashboard', path:'/app',             icon:'DB', label:'Dashboard',    roles:['admin','supervisor','sindico','subsindico','conselho','campo'] },
+  { id:'diario',    path:'/app/diario',      icon:'DI', label:'Diario',       roles:['admin','supervisor','sindico','subsindico','conselho','campo'], badge:true },
+  { id:'semanal',   path:'/app/semanal',     icon:'SE', label:'Semanal',      roles:['admin','supervisor','sindico','subsindico','conselho','campo'], badge:true },
+  { id:'mensal',    path:'/app/mensal',      icon:'ME', label:'Mensal',       roles:['admin','supervisor','sindico','subsindico','conselho','campo'], badge:true },
+  { id:'anual',     path:'/app/anual',       icon:'AN', label:'Anual',        roles:['admin','supervisor','sindico','subsindico','conselho','campo'], badge:true },
+  { id:'ciclo',     path:'/app/ciclo',       icon:'C8', label:'Ciclo 8 Dias', roles:['admin','supervisor','sindico','subsindico','conselho','campo'] },
+  { id:'kanban',    path:'/app/kanban',      icon:'KB', label:'Kanban',       roles:['admin','supervisor','sindico','subsindico','conselho','campo'] },
+  { id:'aprovacoes',path:'/app/aprovacoes',  icon:'AP', label:'Aprovacoes',   roles:['admin','sindico'], badge:true },
+  { id:'auditoria', path:'/app/auditoria',   icon:'AU', label:'Auditoria',    roles:['admin'] },
+  { id:'usuarios',  path:'/app/usuarios',    icon:'US', label:'Usuarios',     roles:['admin'] },
+  { id:'morador',   path:'/app/morador',     icon:'HO', label:'Status do Dia',roles:['morador'] },
+  { id:'quadras',   path:'/app/quadras',     icon:'QR', label:'Quadras/Ruas', roles:['admin','supervisor'] },
+  { id:'observacoes',path:'/app/observacoes',icon:'OB', label:'Observacoes',  roles:['admin','supervisor','sindico','subsindico','conselho'] },
+  { id:'cadastros', path:'/app/cadastros',   icon:'CA', label:'Cadastros',    roles:['admin','supervisor'] },
 ];
 
 const BOTTOM_NAV = {
@@ -29,7 +29,6 @@ const BOTTOM_NAV = {
 
 export default function Layout({ children, title, badges={} }) {
   const { user, logout } = useAuth();
-  const toast    = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebar] = useState(false);
@@ -37,15 +36,19 @@ export default function Layout({ children, title, badges={} }) {
   const touchStartY = useRef(0);
 
   const perfil = user?.perfil || 'morador';
-  const role   = getRoleInfo(perfil);
-  const pages  = PAGES.filter(p => p.roles.includes(perfil));
-  const bnIds  = perfil === 'morador' ? BOTTOM_NAV.morador : BOTTOM_NAV.default;
+  const role = getRoleInfo(perfil);
+  const pages = PAGES.filter(p => p.roles.includes(perfil));
+  const bnIds = perfil === 'morador' ? BOTTOM_NAV.morador : BOTTOM_NAV.default;
   const bnPages = pages.filter(p => bnIds.includes(p.id));
+  const roleVars = {
+    '--role-accent': role.color,
+    '--role-rgb': role.rgb,
+    '--role-surface': role.surface,
+    '--role-ink': role.ink,
+  };
 
-  // Fecha sidebar ao navegar (mobile)
   useEffect(() => { setSidebar(false); }, [location.pathname]);
 
-  // Swipe para abrir/fechar sidebar
   useEffect(() => {
     const onStart = e => {
       touchStartX.current = e.touches[0].clientX;
@@ -56,11 +59,14 @@ export default function Layout({ children, title, badges={} }) {
       const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
       if (dy > 60) return;
       if (dx > 55 && touchStartX.current < 30 && !sidebarOpen) setSidebar(true);
-      if (dx < -55 && sidebarOpen)                               setSidebar(false);
+      if (dx < -55 && sidebarOpen) setSidebar(false);
     };
     document.addEventListener('touchstart', onStart, { passive:true });
-    document.addEventListener('touchend',   onEnd,   { passive:true });
-    return () => { document.removeEventListener('touchstart',onStart); document.removeEventListener('touchend',onEnd); };
+    document.addEventListener('touchend', onEnd, { passive:true });
+    return () => {
+      document.removeEventListener('touchstart', onStart);
+      document.removeEventListener('touchend', onEnd);
+    };
   }, [sidebarOpen]);
 
   async function handleLogout() {
@@ -74,117 +80,113 @@ export default function Layout({ children, title, badges={} }) {
   };
 
   return (
-    <div style={{ display:'flex', minHeight:'100vh' }}>
+    <div className="app-shell" data-role={perfil} style={roleVars}>
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebar(false)} />}
 
-      {/* OVERLAY */}
-      {sidebarOpen && (
-        <div onClick={() => setSidebar(false)} style={{
-          position:'fixed', inset:0, background:'rgba(0,0,0,.65)',
-          zIndex:49, backdropFilter:'blur(2px)',
-        }}/>
-      )}
-
-      {/* SIDEBAR */}
-      <aside className={`sidebar${sidebarOpen?' open':''}`}>
+      <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
         <div className="sidebar-header">
-          <div className="sidebar-logo-icon">🏘️</div>
-          <div>
-            <div className="sidebar-title">Manutenção</div>
-            <div className="sidebar-sub">Condomínio</div>
+          <div className="sidebar-logo-icon">PM</div>
+          <div className="brand-copy">
+            <div className="sidebar-title">Portal Manutencao</div>
+            <div className="sidebar-sub">Operacao condominial</div>
           </div>
-          <button className="sidebar-close" onClick={() => setSidebar(false)}>✕</button>
+          <button className="sidebar-close" onClick={() => setSidebar(false)} aria-label="Fechar menu">x</button>
         </div>
 
         <div className="user-card">
-          <div className="user-avatar" style={{ background:role.color+'22', color:role.color }}>
-            {role.emoji}
-          </div>
-          <div>
-            <div className="user-name">{user?.nome}</div>
-            <div className="user-role">{role.label}</div>
+          <div className="user-avatar">{role.emoji}</div>
+          <div className="user-copy">
+            <div className="user-name">{user?.nome || 'Usuario'}</div>
+            <div className="user-role">{role.label} - {role.signature}</div>
           </div>
         </div>
 
         <nav className="sidebar-nav">
-          {/* Seções do nav */}
           {renderNavSections(pages, badges, navigate, isActive)}
         </nav>
 
         <div className="sidebar-footer">
-          <button className="logout-btn" onClick={handleLogout}>⬅ Sair</button>
+          <button className="logout-btn" onClick={handleLogout}>Sair</button>
           <div className="login-date">
-            Último acesso: {user?.ultimo_login ? new Date(user.ultimo_login).toLocaleDateString('pt-BR') : 'Agora'}
+            Ultimo acesso: {user?.ultimo_login ? new Date(user.ultimo_login).toLocaleDateString('pt-BR') : 'Agora'}
           </div>
         </div>
       </aside>
 
-      {/* MAIN */}
       <div className="main">
         <header className="topbar">
           <div className="topbar-left">
-            <button className="hamburger" onClick={() => setSidebar(true)}>
+            <button className="hamburger" onClick={() => setSidebar(true)} aria-label="Abrir menu">
               <span/><span/><span/>
             </button>
-            <div className="topbar-title">{title || 'Portal'}</div>
+            <div>
+              <div className="topbar-title">{title || 'Portal'}</div>
+              <div className="topbar-context">{role.short}</div>
+            </div>
           </div>
           <div className="topbar-right">
-            {/* Notificação de aprovações pendentes */}
             {(badges.aprovacoes > 0) && ['admin','sindico'].includes(perfil) && (
-              <button onClick={() => navigate('/app/aprovacoes')} style={{
-                position:'relative', background:'var(--red)', border:'none',
-                color:'#fff', borderRadius:'8px', padding:'6px 10px', fontSize:'13px', cursor:'pointer',
-              }}>
-                ✅ <span style={{ fontWeight:700 }}>{badges.aprovacoes}</span> pendente(s)
+              <button className="approval-alert" onClick={() => navigate('/app/aprovacoes')}>
+                <span>{badges.aprovacoes}</span>
+                pendente(s)
               </button>
             )}
+            <ThemeToggle />
+            <div className="role-pill">
+              <span className="role-pill-mark">{role.emoji}</span>
+              <span className="role-pill-text">{role.label}</span>
+            </div>
           </div>
         </header>
 
-        <div className="content">
+        <main className="content">
           {children}
-        </div>
+        </main>
       </div>
 
-      {/* BOTTOM NAV */}
       <nav className="bottom-nav">
         {bnPages.map(p => (
-          <button key={p.id} className={`bn-item${isActive(p.path)?' active':''}`}
-            onClick={() => navigate(p.path)}>
+          <button
+            key={p.id}
+            className={`bn-item${isActive(p.path) ? ' active' : ''}`}
+            onClick={() => navigate(p.path)}
+          >
             <span className="bn-icon">{p.icon}</span>
-            {p.label.split(' ')[0]}
+            <span className="bn-label">{p.label.split(' ')[0]}</span>
           </button>
         ))}
-        <button className={`bn-item${sidebarOpen?' active':''}`} onClick={() => setSidebar(!sidebarOpen)}>
-          <span className="bn-icon">☰</span>Menu
+        <button className={`bn-item${sidebarOpen ? ' active' : ''}`} onClick={() => setSidebar(!sidebarOpen)}>
+          <span className="bn-icon">MN</span>
+          <span className="bn-label">Menu</span>
         </button>
       </nav>
-
     </div>
   );
 }
 
-// Agrupa páginas em seções para o sidebar
 function renderNavSections(pages, badges, navigate, isActive) {
   const sections = [
-    { label:'Visão Geral',   ids:['dashboard'] },
-    { label:'Manutenção',    ids:['diario','semanal','mensal','anual','ciclo'] },
-    { label:'Ferramentas',   ids:['kanban'] },
-    { label:'Gestão',        ids:['aprovacoes','usuarios','quadras','cadastros','observacoes','auditoria'] },
-    { label:'Minha Área',    ids:['morador'] },
+    { label:'Visao Geral', ids:['dashboard'] },
+    { label:'Manutencao', ids:['diario','semanal','mensal','anual','ciclo'] },
+    { label:'Ferramentas', ids:['kanban'] },
+    { label:'Gestao', ids:['aprovacoes','usuarios','quadras','cadastros','observacoes','auditoria'] },
+    { label:'Minha Area', ids:['morador'] },
   ];
 
   return sections.map(sec => {
     const items = pages.filter(p => sec.ids.includes(p.id));
     if (!items.length) return null;
     return (
-      <div key={sec.label}>
+      <div key={sec.label} className="nav-group">
         <div className="nav-section">{sec.label}</div>
         {items.map(p => (
-          <button key={p.id}
-            className={`nav-item${isActive(p.path)?' active':''}`}
-            onClick={() => navigate(p.path)}>
+          <button
+            key={p.id}
+            className={`nav-item${isActive(p.path) ? ' active' : ''}`}
+            onClick={() => navigate(p.path)}
+          >
             <span className="ni">{p.icon}</span>
-            {p.label}
+            <span className="nav-label">{p.label}</span>
             {p.badge && badges[p.id] > 0 && (
               <span className="nav-badge">{badges[p.id]}</span>
             )}

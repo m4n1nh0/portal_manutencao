@@ -45,7 +45,7 @@ export function Spinner({ size=36 }) {
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'40px' }}>
       <div style={{
         width:size, height:size,
-        border:'3px solid var(--bd)', borderTopColor:'var(--acc)',
+        border:'3px solid var(--bd)', borderTopColor:'var(--role-accent)',
         borderRadius:'50%', animation:'spin .7s linear infinite',
       }}/>
     </div>
@@ -53,7 +53,7 @@ export function Spinner({ size=36 }) {
 }
 
 // ── Progress Bar ───────────────────────────────────────────────
-export function ProgressBar({ done, total, color='var(--acc)' }) {
+export function ProgressBar({ done, total, color='var(--role-accent)' }) {
   const pct = total ? Math.round(done/total*100) : 0;
   return (
     <div className="progress-bar">
@@ -142,7 +142,7 @@ export function SenhaForca({ senha }) {
     { ok: /[^A-Za-z0-9]/.test(senha),  label: 'Caractere especial' },
   ];
   const score = checks.filter(c=>c.ok).length;
-  const colors = ['var(--red)','var(--red)','var(--acc)','var(--acc)','var(--grn)'];
+  const colors = ['var(--red)','var(--red)','var(--role-accent)','var(--role-accent)','var(--grn)'];
   const labels = ['','Fraca','Fraca','Média','Forte'];
 
   if (!senha) return null;
