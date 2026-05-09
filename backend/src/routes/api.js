@@ -147,34 +147,74 @@ router.get('/tarefas/:id/historico', async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════
-// CICLO 8 DIAS
+// CICLO DINAMICO
 // ══════════════════════════════════════════════════════════════
-router.get('/ciclo', async (_,res) => {
-  const [rows] = await db.query('SELECT * FROM ciclo_8dias ORDER BY dia_ciclo');
+router.get('/ciclo', async (_, res) => {
+  const [rows] = await db.query('SELECT * FROM ciclo_8dias ORDER BY dia_ciclo,setor');
   ok(res,{ciclo:rows});
 });
 
-router.put('/ciclo/:id', exigirPerfil('admin','supervisor'),
-  body('dia_ciclo').isInt({ min: 1, max: 31 }),
-  body('setor').trim().notEmpty().isLength({ max: 20 }),
-  body('trecho').optional({ nullable:true }).trim().isLength({ max: 120 }),
+router.post('/ciclo', exigirPerfil('admin','supervisor'),
+  body('dia_ciclo').isInt({ min: 1, max: 365 }),
+  body('setor').trim().notEmpty().isLength({ max: 80 }),
+  body('trecho').optional({ nullable:true }).trim().isLength({ max: 160 }),
   body('limpeza').optional({ nullable:true }).trim(),
   body('rocagem').optional({ nullable:true }).trim(),
   body('inspecao').optional({ nullable:true }).trim(),
   val, async (req, res) => {
     const { dia_ciclo,setor,trecho,limpeza,rocagem,inspecao } = req.body;
-    const [r] = await db.query(
-      `UPDATE ciclo_8dias
-       SET dia_ciclo=?,setor=?,trecho=?,limpeza=?,rocagem=?,inspecao=?
-       WHERE id=?`,
-      [parseInt(dia_ciclo),setor,trecho||null,limpeza||null,rocagem||null,inspecao||null,req.params.id]
-    );
-    if (!r.affectedRows) return res.status(404).json({erro:'Item do ciclo nao encontrado.'});
-    const [[item]] = await db.query('SELECT * FROM ciclo_8dias WHERE id=?',[req.params.id]);
-    await audit(req,'ciclo_atualizado','ciclo_8dias',req.params.id,{dia_ciclo,setor});
-    ok(res,{item});
+    try {
+      await db.query(
+        `INSERT INTO ciclo_8dias (dia_ciclo,setor,trecho,limpeza,rocagem,inspecao)
+         VALUES (?,?,?,?,?,?)`,
+        [parseInt(dia_ciclo, 10),setor.trim(),trecho?.trim()||null,limpeza?.trim()||null,rocagem?.trim()||null,inspecao?.trim()||null]
+      );
+      const [[item]] = await db.query('SELECT * FROM ciclo_8dias WHERE dia_ciclo=?',[parseInt(dia_ciclo, 10)]);
+      await audit(req,'ciclo_criado','ciclo_8dias',item.id,{dia_ciclo,setor});
+      ok(res,{item},201);
+    } catch(e) {
+      if (e.code === 'ER_DUP_ENTRY') return res.status(409).json({erro:'Dia do ciclo ja cadastrado.'});
+      console.error(e);
+      return res.status(500).json({erro:'Erro interno.'});
+    }
   }
 );
+
+router.put('/ciclo/:id', exigirPerfil('admin','supervisor'),
+  body('dia_ciclo').isInt({ min: 1, max: 365 }),
+  body('setor').trim().notEmpty().isLength({ max: 80 }),
+  body('trecho').optional({ nullable:true }).trim().isLength({ max: 160 }),
+  body('limpeza').optional({ nullable:true }).trim(),
+  body('rocagem').optional({ nullable:true }).trim(),
+  body('inspecao').optional({ nullable:true }).trim(),
+  val, async (req, res) => {
+    const { dia_ciclo,setor,trecho,limpeza,rocagem,inspecao } = req.body;
+    try {
+      const [r] = await db.query(
+        `UPDATE ciclo_8dias
+         SET dia_ciclo=?,setor=?,trecho=?,limpeza=?,rocagem=?,inspecao=?
+         WHERE id=?`,
+        [parseInt(dia_ciclo, 10),setor.trim(),trecho?.trim()||null,limpeza?.trim()||null,rocagem?.trim()||null,inspecao?.trim()||null,req.params.id]
+      );
+      if (!r.affectedRows) return res.status(404).json({erro:'Item do ciclo nao encontrado.'});
+      const [[item]] = await db.query('SELECT * FROM ciclo_8dias WHERE id=?',[req.params.id]);
+      await audit(req,'ciclo_atualizado','ciclo_8dias',req.params.id,{dia_ciclo,setor});
+      ok(res,{item});
+    } catch(e) {
+      if (e.code === 'ER_DUP_ENTRY') return res.status(409).json({erro:'Dia do ciclo ja cadastrado.'});
+      console.error(e);
+      return res.status(500).json({erro:'Erro interno.'});
+    }
+  }
+);
+
+router.delete('/ciclo/:id', exigirPerfil('admin','supervisor'), async (req, res) => {
+  const [[item]] = await db.query('SELECT id,dia_ciclo,setor FROM ciclo_8dias WHERE id=?',[req.params.id]);
+  if (!item) return res.status(404).json({erro:'Item do ciclo nao encontrado.'});
+  await db.query('DELETE FROM ciclo_8dias WHERE id=?',[req.params.id]);
+  await audit(req,'ciclo_removido','ciclo_8dias',req.params.id,{dia_ciclo:item.dia_ciclo,setor:item.setor});
+  ok(res,{mensagem:'Dia do ciclo removido.'});
+});
 
 // Cadastro de quadras e ruas
 router.get('/quadras', async (_, res) => {

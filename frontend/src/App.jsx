@@ -23,21 +23,21 @@ import Layout from './components/Layout';
 import { Spinner, StatusBadge, ConfirmDialog } from './components/UI';
 import { useToast } from './hooks/useToast';
 import api from './utils/api';
-import { ROLES } from './utils/auth';
+import { ROLES, getHomePath } from './utils/auth';
 
 // ── Guards ────────────────────────────────────────────────────
 function PrivateRoute({ children, roles }) {
   const { user, loading } = useAuth();
   if (loading) return <div id="loading"><div className="spinner"/></div>;
   if (!user)   return <Navigate to="/login" replace/>;
-  if (roles && !roles.includes(user.perfil)) return <Navigate to="/app" replace/>;
+  if (roles && !roles.includes(user.perfil)) return <Navigate to={getHomePath(user.perfil)} replace/>;
   return children;
 }
 
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <div id="loading"><div className="spinner"/></div>;
-  if (user)    return <Navigate to="/app" replace/>;
+  if (user)    return <Navigate to={getHomePath(user.perfil)} replace/>;
   return children;
 }
 

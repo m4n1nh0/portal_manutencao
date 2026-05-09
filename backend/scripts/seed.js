@@ -98,6 +98,10 @@ async function run() {
     }));
 
   try {
+    await timedStep('Seed connection charset', { collation: 'utf8mb4_unicode_ci' }, async () => {
+      await conn.query('SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci');
+    });
+
     await conn.query(`USE \`${config.database}\``);
 
     if (fs.existsSync(SEEDS_DIR)) {

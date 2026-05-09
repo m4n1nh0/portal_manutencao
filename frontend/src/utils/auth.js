@@ -21,6 +21,7 @@ export const PERMISSOES = {
 
 export function getRoleInfo(perfil) { return ROLES[perfil] || ROLES.morador; }
 export function getPerms(perfil)    { return PERMISSOES[perfil] || {}; }
+export function getHomePath(perfil) { return perfil === 'morador' ? '/app/morador' : '/app'; }
 
 export function saveSession(usuario, token, refresh) {
   localStorage.setItem('pm_token',   token);

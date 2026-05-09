@@ -74,8 +74,10 @@ const api = {
   historico:    (id)          => request('GET',    `/tarefas/${id}/historico`),
 
   // Ciclo
-  ciclo:      ()      => request('GET', '/ciclo'),
-  editarCiclo:(id, c) => request('PUT', `/ciclo/${id}`, c),
+  ciclo:       ()      => request('GET', '/ciclo'),
+  criarCiclo:  (c)     => request('POST', '/ciclo', c),
+  editarCiclo: (id, c) => request('PUT', `/ciclo/${id}`, c),
+  deletarCiclo:(id)    => request('DELETE', `/ciclo/${id}`),
 
   // Quadras e ruas
   quadras:       ()            => request('GET',    '/quadras'),

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
-import { SectorTag, Spinner, InfoBox } from '../components/UI';
+import { EmptyState, SectorTag, Spinner, InfoBox } from '../components/UI';
 import api from '../utils/api';
 
 export default function Ciclo() {
@@ -14,31 +14,44 @@ export default function Ciclo() {
       .finally(() => setLoading(false));
   }, []);
 
+  const totalDias = ciclo.length ? Math.max(...ciclo.map((item) => Number(item.dia_ciclo) || 0)) : 0;
+  const title = totalDias ? `Ciclo de ${totalDias} ${totalDias === 1 ? 'dia' : 'dias'}` : 'Ciclo';
+
   return (
-    <Layout title="Ciclo de 8 Dias">
+    <Layout title={title}>
       <InfoBox>
-        🔄 O ciclo de 8 dias distribui a limpeza de ruas e roçagem por setor, rotacionando diariamente.
+        O ciclo e montado dinamicamente a partir dos dias cadastrados. Ajustes feitos em Cadastros aparecem aqui automaticamente.
       </InfoBox>
-      {loading ? <Spinner/> : (
-        <div className="task-list">
+
+      {loading ? <Spinner/> : ciclo.length === 0 ? (
+        <EmptyState icon="CI" title="Nenhum dia cadastrado" desc="Cadastre os dias do ciclo para exibir a rota operacional."/>
+      ) : (
+        <div className="ciclo-grid">
           {ciclo.map(c => (
-            <div key={c.id} className="task-card">
-              <div className="task-card-top">
-                <div className="task-card-title">{c.trecho}</div>
-                <span className="badge-ciclo">Dia {c.dia_ciclo}</span>
-              </div>
-              <div className="task-card-meta">
+            <article key={c.id} className="ciclo-card">
+              <div className="ciclo-card-head">
+                <span className="ciclo-day">Dia {c.dia_ciclo}</span>
                 <SectorTag setor={c.setor}/>
               </div>
-              <div className="ciclo-details">
-                🧹 {c.limpeza}<br/>
-                ✂️ {c.rocagem}<br/>
-                🔍 {c.inspecao}
+              <div className="ciclo-card-title">{c.trecho || c.setor}</div>
+              <div className="ciclo-steps">
+                <Step label="Limpeza" value={c.limpeza}/>
+                <Step label="Rocagem" value={c.rocagem}/>
+                <Step label="Inspecao" value={c.inspecao}/>
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}
     </Layout>
+  );
+}
+
+function Step({ label, value }) {
+  return (
+    <div className="ciclo-step">
+      <span>{label}</span>
+      <p>{value || '-'}</p>
+    </div>
   );
 }

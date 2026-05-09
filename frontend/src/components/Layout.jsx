@@ -11,7 +11,7 @@ const PAGES = [
   { id:'semanal',   path:'/app/semanal',     icon:'SE', label:'Semanal',      roles:['admin','supervisor','sindico','subsindico','conselho','campo'], badge:true },
   { id:'mensal',    path:'/app/mensal',      icon:'ME', label:'Mensal',       roles:['admin','supervisor','sindico','subsindico','conselho','campo'], badge:true },
   { id:'anual',     path:'/app/anual',       icon:'AN', label:'Anual',        roles:['admin','supervisor','sindico','subsindico','conselho','campo'], badge:true },
-  { id:'ciclo',     path:'/app/ciclo',       icon:'C8', label:'Ciclo 8 Dias', roles:['admin','supervisor','sindico','subsindico','conselho','campo'] },
+  { id:'ciclo',     path:'/app/ciclo',       icon:'CI', label:'Ciclo',        roles:['admin','supervisor','sindico','subsindico','conselho','campo'] },
   { id:'kanban',    path:'/app/kanban',      icon:'KB', label:'Kanban',       roles:['admin','supervisor','sindico','subsindico','conselho','campo'] },
   { id:'aprovacoes',path:'/app/aprovacoes',  icon:'AP', label:'Aprovacoes',   roles:['admin','sindico'], badge:true },
   { id:'auditoria', path:'/app/auditoria',   icon:'AU', label:'Auditoria',    roles:['admin'] },

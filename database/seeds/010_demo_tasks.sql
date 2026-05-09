@@ -15,7 +15,7 @@ CREATE TEMPORARY TABLE seed_tarefas_demo (
   status VARCHAR(30) NOT NULL DEFAULT 'Pendente',
   observacoes TEXT NULL,
   atualizado_em DATETIME NOT NULL
-);
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO seed_tarefas_demo
   (ciclo,setor,area,atividade,equipe,prioridade,status,observacoes,atualizado_em)

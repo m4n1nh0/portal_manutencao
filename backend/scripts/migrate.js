@@ -73,6 +73,10 @@ async function run() {
     }));
 
   try {
+    await timedStep('Migration connection charset', { collation: 'utf8mb4_unicode_ci' }, async () => {
+      await conn.query('SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci');
+    });
+
     await timedStep('Database selection', { database }, async () => {
       await conn.query(`CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
       await conn.query(`USE \`${database}\``);

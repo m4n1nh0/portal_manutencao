@@ -5,6 +5,7 @@ import { useToast } from '../hooks/useToast';
 import api from '../utils/api';
 import { PasswordInput } from '../components/UI';
 import ThemeToggle from '../components/ThemeToggle';
+import { getHomePath } from '../utils/auth';
 
 export default function Login() {
   const { login }  = useAuth();
@@ -37,7 +38,7 @@ export default function Login() {
         setStep('otp');
       } else {
         login(res.usuario, res.token, res.refreshToken);
-        navigate('/app');
+        navigate(getHomePath(res.usuario?.perfil));
       }
     } catch(e) {
       setErro(e.message);
@@ -65,7 +66,7 @@ export default function Login() {
     try {
       const res = await api.verifyOtp(userId, code);
       login(res.usuario, res.token, res.refreshToken);
-      navigate('/app');
+      navigate(getHomePath(res.usuario?.perfil));
     } catch(e) {
       setErro(e.message);
       setOtp(['','','','','','']);

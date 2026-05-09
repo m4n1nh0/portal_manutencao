@@ -5,13 +5,14 @@ import { useToast } from '../hooks/useToast';
 import api from '../utils/api';
 
 const TABS = [
-  { id: 'ciclo', label: 'Ciclo 8 dias' },
+  { id: 'ciclo', label: 'Ciclo' },
   { id: 'equipes', label: 'Responsaveis' },
   { id: 'locais', label: 'Areas/Locais' },
   { id: 'modelos', label: 'Modelos' },
 ];
 
 const CICLO_LABELS = { diario: 'Diario', semanal: 'Semanal', mensal: 'Mensal', anual: 'Anual', todas: 'Todas' };
+const EMPTY_CICLO = { dia_ciclo: 1, setor: '', trecho: '', limpeza: '', rocagem: '', inspecao: '' };
 const EMPTY_EQUIPE = { nome: '', tipo: '', contato: '', ativo: true };
 const EMPTY_LOCAL = { nome: '', categoria: '', descricao: '', ativo: true };
 const EMPTY_MODELO = { ciclo: 'diario', setor: '', area: '', atividade: '', equipe: '', prioridade: '', ativo: true };
@@ -60,6 +61,10 @@ export default function Cadastros() {
   }, [busca, ciclo, equipes, locais, modelos, tab]);
 
   function newItem() {
+    if (tab === 'ciclo') {
+      const nextDay = Math.max(0, ...ciclo.map((item) => Number(item.dia_ciclo) || 0)) + 1;
+      setForm({ type: 'ciclo', data: { ...EMPTY_CICLO, dia_ciclo: nextDay } });
+    }
     if (tab === 'equipes') setForm({ type: 'equipe', data: EMPTY_EQUIPE });
     if (tab === 'locais') setForm({ type: 'local', data: EMPTY_LOCAL });
     if (tab === 'modelos') setForm({ type: 'modelo', data: EMPTY_MODELO });
@@ -76,7 +81,7 @@ export default function Cadastros() {
     e.preventDefault();
     const { type, data } = form;
     try {
-      if (type === 'ciclo') await api.editarCiclo(data.id, data);
+      if (type === 'ciclo') data.id ? await api.editarCiclo(data.id, data) : await api.criarCiclo(data);
       if (type === 'equipe') data.id ? await api.editarEquipe(data.id, data) : await api.criarEquipe(data);
       if (type === 'local') data.id ? await api.editarLocal(data.id, data) : await api.criarLocal(data);
       if (type === 'modelo') data.id ? await api.editarModeloTarefa(data.id, data) : await api.criarModeloTarefa(data);
@@ -90,6 +95,7 @@ export default function Cadastros() {
 
   async function removeItem() {
     try {
+      if (confirm.type === 'ciclo') await api.deletarCiclo(confirm.id);
       if (confirm.type === 'equipe') await api.deletarEquipe(confirm.id);
       if (confirm.type === 'local') await api.deletarLocal(confirm.id);
       if (confirm.type === 'modelo') await api.deletarModeloTarefa(confirm.id);
@@ -114,7 +120,7 @@ export default function Cadastros() {
       <div className="filter-row" style={{ marginBottom: '16px' }}>
         <input className="filter-select" type="text" placeholder="Buscar..."
           value={busca} onChange={(e) => setBusca(e.target.value)} style={{ minWidth: '220px' }} />
-        {tab !== 'ciclo' && <button className="btn btn-primary btn-sm" onClick={newItem}>+ Novo</button>}
+        <button className="btn btn-primary btn-sm" onClick={newItem}>+ Novo</button>
         <button className="btn btn-ghost btn-sm" onClick={load}>Atualizar</button>
       </div>
 
@@ -125,7 +131,7 @@ export default function Cadastros() {
           {tab === 'ciclo' && filtered.map((item) => (
             <Card key={item.id} title={`Dia ${item.dia_ciclo} - ${item.trecho || item.setor}`}
               meta={<><SectorTag setor={item.setor} /></>}
-              actions={<button className="btn btn-ghost btn-sm" onClick={() => editItem('ciclo', item)}>Editar</button>}>
+              actions={<CrudActions onEdit={() => editItem('ciclo', item)} onDelete={() => setConfirm({ type: 'ciclo', id: item.id, nome: `Dia ${item.dia_ciclo}` })} />}>
               <div className="ciclo-details">
                 Limpeza: {item.limpeza || '-'}<br />
                 Rocagem: {item.rocagem || '-'}<br />
@@ -229,7 +235,7 @@ function setFormData(setForm) {
 }
 
 function modalTitle(form) {
-  if (form.type === 'ciclo') return 'Editar ciclo';
+  if (form.type === 'ciclo') return form.data.id ? 'Editar dia do ciclo' : 'Novo dia do ciclo';
   if (form.type === 'equipe') return form.data.id ? 'Editar responsavel' : 'Novo responsavel';
   if (form.type === 'local') return form.data.id ? 'Editar area/local' : 'Nova area/local';
   return form.data.id ? 'Editar modelo' : 'Novo modelo';
