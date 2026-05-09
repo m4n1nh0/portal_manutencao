@@ -110,7 +110,7 @@ export function Select({ label, required, error, children, ...props }) {
 }
 
 // ── Senha com visibilidade ─────────────────────────────────────
-export function PasswordInput({ label, required, error, value, onChange, placeholder }) {
+export function PasswordInput({ label, required, error, value, onChange, placeholder, ...props }) {
   const [show, setShow] = useState(false);
   return (
     <div className="form-group">
@@ -120,7 +120,9 @@ export function PasswordInput({ label, required, error, value, onChange, placeho
           type={show?'text':'password'}
           className={`form-control${error?' input-error':''}`}
           value={value} onChange={onChange} placeholder={placeholder}
+          required={required}
           style={{ paddingRight:'42px' }}
+          {...props}
         />
         <button type="button" onClick={() => setShow(!show)}
           style={{ position:'absolute', right:'12px', top:'50%', transform:'translateY(-50%)',

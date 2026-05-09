@@ -18,6 +18,11 @@ const OTP_MIN  = parseInt(process.env.OTP_EXPIRES_MINUTES || '10');
 
 // ── Gera OTP 6 dígitos ──────────────────────────────────────────
 function geraOTP() { return String(Math.floor(100000 + Math.random() * 900000)); }
+function smtpReady() { return Boolean(process.env.SMTP_USER && process.env.SMTP_PASS); }
+function localRuntime() {
+  const urls = `${process.env.CLIENT_URL || ''} ${process.env.APP_URL || ''}`;
+  return /localhost|127\.0\.0\.1/.test(urls);
+}
 
 // ── Emite tokens ────────────────────────────────────────────────
 function emiteTokens(user) {
@@ -117,7 +122,8 @@ router.post('/login',
       return res.json({
         token: access, refreshToken: refresh,
         usuario: { id:u.id, login:u.login, nome:u.nome, perfil:u.perfil, status:u.status, email:u.email,
-                   unidade:u.unidade, permissoes: PERMISSOES[u.perfil] }
+                   unidade:u.unidade, telefone:u.telefone, cpf:u.cpf, twofa_habilitado:u.twofa_habilitado,
+                   ultimo_login:u.ultimo_login, permissoes: PERMISSOES[u.perfil] }
       });
     } catch(e) { console.error(e); res.status(500).json({ erro:'Erro interno.' }); }
   }
@@ -165,7 +171,8 @@ router.post('/verify-otp',
       return res.json({
         token: access, refreshToken: refresh,
         usuario: { id:u.id, login:u.login, nome:u.nome, perfil:u.perfil, status:u.status, email:u.email,
-                   unidade:u.unidade, permissoes: PERMISSOES[u.perfil] }
+                   unidade:u.unidade, telefone:u.telefone, cpf:u.cpf, twofa_habilitado:u.twofa_habilitado,
+                   ultimo_login:u.ultimo_login, permissoes: PERMISSOES[u.perfil] }
       });
     } catch(e) { console.error(e); res.status(500).json({ erro:'Erro interno.' }); }
   }
@@ -284,11 +291,51 @@ router.post('/register',
 // ══════════════════════════════════════════════════════════════
 router.get('/me', autenticar, async (req, res) => {
   const [[u]] = await db.query(
-    'SELECT id,login,nome,email,perfil,status,unidade,telefone,twofa_habilitado,ultimo_login FROM usuarios WHERE id=?',
+    'SELECT id,login,nome,email,perfil,status,unidade,telefone,cpf,twofa_habilitado,ultimo_login FROM usuarios WHERE id=?',
     [req.usuario.id]);
   if (!u) return res.status(404).json({ erro:'Não encontrado.' });
   res.json({ usuario: { ...u, permissoes: PERMISSOES[u.perfil] } });
 });
+
+// ══════════════════════════════════════════════════════════════
+// PATCH /api/auth/profile
+// ══════════════════════════════════════════════════════════════
+router.patch('/profile', autenticar,
+  body('nome').trim().notEmpty().isLength({ max: 120 }),
+  body('email').isEmail().isLength({ max: 120 }),
+  body('telefone').optional({ nullable:true }).trim().isLength({ max: 20 }),
+  body('unidade').optional({ nullable:true }).trim().isLength({ max: 30 }),
+  val,
+  async (req, res) => {
+    const nome = req.body.nome.trim();
+    const email = req.body.email.trim().toLowerCase();
+    const telefone = req.body.telefone?.trim() || null;
+    const unidade = req.body.unidade?.trim() || null;
+
+    try {
+      const [[existing]] = await db.query(
+        'SELECT id FROM usuarios WHERE email=? AND id<>?',
+        [email, req.usuario.id]
+      );
+      if (existing) return res.status(409).json({ erro:'E-mail já cadastrado em outra conta.' });
+
+      await db.query(
+        'UPDATE usuarios SET nome=?, email=?, telefone=?, unidade=? WHERE id=?',
+        [nome,email,telefone,unidade,req.usuario.id]
+      );
+
+      const [[u]] = await db.query(
+        'SELECT id,login,nome,email,perfil,status,unidade,telefone,cpf,twofa_habilitado,ultimo_login FROM usuarios WHERE id=?',
+        [req.usuario.id]
+      );
+      await audit(req, 'perfil_atualizado', 'usuario', req.usuario.id, { email, telefone, unidade });
+      res.json({ usuario: { ...u, permissoes: PERMISSOES[u.perfil] } });
+    } catch(e) {
+      console.error(e);
+      res.status(500).json({ erro:'Erro ao atualizar perfil.' });
+    }
+  }
+);
 
 // ══════════════════════════════════════════════════════════════
 // PATCH /api/auth/toggle-2fa
@@ -296,6 +343,9 @@ router.get('/me', autenticar, async (req, res) => {
 router.patch('/toggle-2fa', autenticar, async (req, res) => {
   const [[u]] = await db.query('SELECT twofa_habilitado FROM usuarios WHERE id=?', [req.usuario.id]);
   const novo = u.twofa_habilitado ? 0 : 1;
+  if (novo && process.env.NODE_ENV === 'production' && !smtpReady() && !localRuntime()) {
+    return res.status(400).json({ erro:'Configure SMTP_USER e SMTP_PASS antes de ativar o duplo fator.' });
+  }
   await db.query('UPDATE usuarios SET twofa_habilitado=? WHERE id=?', [novo, req.usuario.id]);
   await audit(req, '2fa_toggle', 'usuario', req.usuario.id, { novo });
   res.json({ twofa_habilitado: novo, mensagem: novo ? '2FA ativado.' : '2FA desativado.' });

@@ -17,14 +17,15 @@ const PAGES = [
   { id:'auditoria', path:'/app/auditoria',   icon:'AU', label:'Auditoria',    roles:['admin'] },
   { id:'usuarios',  path:'/app/usuarios',    icon:'US', label:'Usuarios',     roles:['admin'] },
   { id:'morador',   path:'/app/morador',     icon:'HO', label:'Status do Dia',roles:['morador'] },
+  { id:'perfil',    path:'/app/perfil',      icon:'PF', label:'Minha Conta',  roles:['admin','supervisor','sindico','subsindico','conselho','campo','morador'] },
   { id:'quadras',   path:'/app/quadras',     icon:'QR', label:'Quadras/Ruas', roles:['admin','supervisor'] },
   { id:'observacoes',path:'/app/observacoes',icon:'OB', label:'Observacoes',  roles:['admin','supervisor','sindico','subsindico','conselho'] },
   { id:'cadastros', path:'/app/cadastros',   icon:'CA', label:'Cadastros',    roles:['admin','supervisor'] },
 ];
 
 const BOTTOM_NAV = {
-  default: ['dashboard','diario','semanal','kanban'],
-  morador: ['morador'],
+  default: ['dashboard','diario','kanban','perfil'],
+  morador: ['morador','perfil'],
 };
 
 export default function Layout({ children, title, badges={} }) {
@@ -132,10 +133,10 @@ export default function Layout({ children, title, badges={} }) {
               </button>
             )}
             <ThemeToggle />
-            <div className="role-pill">
+            <button type="button" className="role-pill" onClick={() => navigate('/app/perfil')} aria-label="Abrir minha conta">
               <span className="role-pill-mark">{role.emoji}</span>
               <span className="role-pill-text">{role.label}</span>
-            </div>
+            </button>
           </div>
         </header>
 
@@ -170,7 +171,7 @@ function renderNavSections(pages, badges, navigate, isActive) {
     { label:'Manutencao', ids:['diario','semanal','mensal','anual','ciclo'] },
     { label:'Ferramentas', ids:['kanban'] },
     { label:'Gestao', ids:['aprovacoes','usuarios','quadras','cadastros','observacoes','auditoria'] },
-    { label:'Minha Area', ids:['morador'] },
+    { label:'Minha Area', ids:['morador','perfil'] },
   ];
 
   return sections.map(sec => {

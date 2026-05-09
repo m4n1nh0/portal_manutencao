@@ -56,6 +56,7 @@ const api = {
   refresh:        (refreshToken)     => request('POST', '/auth/refresh',         { refreshToken }),
   logout:         (refreshToken)     => request('POST', '/auth/logout',          { refreshToken }),
   me:             ()                 => request('GET',  '/auth/me'),
+  updateProfile:  (perfil)           => request('PATCH','/auth/profile', perfil),
   toggle2fa:      ()                 => request('PATCH','/auth/toggle-2fa'),
   changePassword: (senhaAtual, novaSenha) => request('PATCH','/auth/change-password',{senhaAtual,novaSenha}),
 

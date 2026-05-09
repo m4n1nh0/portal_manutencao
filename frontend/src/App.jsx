@@ -17,6 +17,7 @@ import Auditoria  from './pages/Auditoria';
 import QuadrasRuas from './pages/QuadrasRuas';
 import Observacoes from './pages/Observacoes';
 import Cadastros from './pages/Cadastros';
+import Perfil from './pages/Perfil';
 
 // Components
 import Layout from './components/Layout';
@@ -224,6 +225,7 @@ function AppRoutes() {
       <Route path="/app/ciclo"      element={<PrivateRoute><Ciclo/></PrivateRoute>}/>
       <Route path="/app/kanban"     element={<PrivateRoute><Kanban/></PrivateRoute>}/>
       <Route path="/app/morador"    element={<PrivateRoute roles={['morador']}><Morador/></PrivateRoute>}/>
+      <Route path="/app/perfil"     element={<PrivateRoute><Perfil/></PrivateRoute>}/>
       <Route path="/app/aprovacoes" element={<PrivateRoute roles={['admin','sindico','subsindico']}><Aprovacoes/></PrivateRoute>}/>
       <Route path="/app/auditoria"  element={<PrivateRoute roles={['admin']}><Auditoria/></PrivateRoute>}/>
       <Route path="/app/usuarios"   element={<PrivateRoute roles={['admin']}><UsuariosAdmin/></PrivateRoute>}/>

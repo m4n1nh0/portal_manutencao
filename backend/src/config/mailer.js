@@ -12,6 +12,15 @@ const transporter = nodemailer.createTransport({
 
 const FROM = process.env.SMTP_FROM || '"Portal Manutenção" <noreply@condominio.com>';
 
+function hasSmtpAuth() {
+  return Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
+function allowOtpLogFallback() {
+  const urls = `${process.env.CLIENT_URL || ''} ${process.env.APP_URL || ''}`;
+  return process.env.NODE_ENV !== 'production' || /localhost|127\.0\.0\.1/.test(urls) || process.env.ALLOW_INSECURE_OTP_LOG === 'true';
+}
+
 // ── Templates ──────────────────────────────────────────────────
 function tplOTP(nome, code, expiresMin) {
   return {
@@ -80,6 +89,13 @@ function tplRejeicao(nome, motivo) {
 async function sendOTP(to, nome, code) {
   const mins = parseInt(process.env.OTP_EXPIRES_MINUTES || '10');
   const tpl  = tplOTP(nome, code, mins);
+  if (!hasSmtpAuth()) {
+    if (!allowOtpLogFallback()) {
+      throw new Error('SMTP not configured for OTP delivery.');
+    }
+    console.warn(`[mailer] SMTP not configured. OTP for ${to}: ${code}`);
+    return;
+  }
   await transporter.sendMail({ from: FROM, to, ...tpl });
 }
 
