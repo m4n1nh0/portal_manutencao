@@ -1,8 +1,15 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
 
   # ─── MySQL 8 ──────────────────────────────────────────────────
   mysql:
     image: mysql:8.0
+    logging: *default-logging
     command: >
       --default-authentication-plugin=mysql_native_password
       --character-set-server=utf8mb4
@@ -23,6 +30,7 @@ services:
   # ─── Monolito (API + React no mesmo container) ────────────────
   portal-monolith:
     profiles: ["monolith"]
+    logging: *default-logging
     build:
       context: .
       dockerfile: Dockerfile
@@ -44,6 +52,10 @@ services:
       STORAGE_DRIVER:  local
       UPLOAD_DIR:      /app/uploads
       LOG_DIR:         /app/logs
+      LOG_LEVEL:       info
+      LOG_FORMAT:      text
+      WAIT_FOR_DB:     "true"
+      DB_WAIT_TIMEOUT_SECONDS: 60
       SMTP_HOST:       ""
       SMTP_USER:       ""
       SMTP_PASS:       ""
@@ -59,6 +71,7 @@ services:
   # ─── API separada ─────────────────────────────────────────────
   api:
     profiles: ["split"]
+    logging: *default-logging
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -79,6 +92,10 @@ services:
       STORAGE_DRIVER: local
       UPLOAD_DIR:     /app/uploads
       LOG_DIR:        /app/logs
+      LOG_LEVEL:      info
+      LOG_FORMAT:     text
+      WAIT_FOR_DB:    "true"
+      DB_WAIT_TIMEOUT_SECONDS: 60
     depends_on:
       mysql:
         condition: service_healthy
@@ -91,6 +108,7 @@ services:
   # ─── Frontend separado (Caddy) ────────────────────────────────
   web:
     profiles: ["split"]
+    logging: *default-logging
     build:
       context: .
       dockerfile: frontend/Dockerfile

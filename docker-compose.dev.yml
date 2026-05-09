@@ -30,6 +30,9 @@ services:
       RUN_SEEDS:      "true"
       STORAGE_DRIVER: local
       UPLOAD_DIR:     /app/uploads
+      LOG_LEVEL:      debug
+      LOG_FORMAT:     text
+      LOG_HTTP_REQUESTS: "true"
       CHOKIDAR_USEPOLLING: "true"
     volumes:
       # Hot reload: monta o codigo local.

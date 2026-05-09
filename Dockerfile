@@ -36,6 +36,7 @@ ENV NODE_ENV=production \
     SERVE_CLIENT=true \
     CLIENT_DIST_DIR=/app/client/dist \
     LOG_DIR=/app/logs \
+    LOG_SERVICE=portal-monolith \
     UPLOAD_DIR=/app/uploads
 
 # Apenas dependências de produção do backend
@@ -64,7 +65,7 @@ USER node
 EXPOSE 3001
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-  CMD wget -qO- http://localhost:3001/api/health || exit 1
+  CMD wget -qO- http://127.0.0.1:3001/api/health || exit 1
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "backend/src/server.js"]

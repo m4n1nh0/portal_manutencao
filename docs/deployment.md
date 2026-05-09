@@ -61,7 +61,7 @@ JWT_SECRET=          # openssl rand -hex 64
 CLIENT_URL=          # URL do frontend (ou URL do monolito)
 APP_URL=             # URL desta API
 RUN_MIGRATIONS=true  # roda migrations na inicialização
-RUN_SEEDS=false      # true apenas no primeiro deploy
+RUN_SEEDS=false      # use true somente se tambem definir ALLOW_DEV_SEEDS=true
 STORAGE_DRIVER=local # local | s3 | r2
 ```
 
@@ -86,12 +86,12 @@ VITE_API_URL=https://sua-api.up.railway.app/api
    APP_URL=https://seu-monolito.up.railway.app
    SERVE_CLIENT=true
    RUN_MIGRATIONS=true
-   RUN_SEEDS=true
+   RUN_SEEDS=false
    NODE_ENV=production
    ```
 5. O Railway detecta `railway.json` e usa o `Dockerfile` da raiz.
-6. No primeiro deploy, `RUN_SEEDS=true` insere os usuários iniciais.
-   Mude para `RUN_SEEDS=false` depois.
+6. Se voce realmente quiser criar os usuarios de exemplo no primeiro deploy,
+   defina `RUN_SEEDS=true` e `ALLOW_DEV_SEEDS=true`, depois volte ambos para `false`.
 
 ## Deploy no Railway — Separado
 
@@ -108,7 +108,7 @@ JWT_SECRET=<64 bytes hex>
 CLIENT_URL=https://seu-front.up.railway.app
 APP_URL=https://sua-api.up.railway.app
 RUN_MIGRATIONS=true
-RUN_SEEDS=true
+RUN_SEEDS=false
 NODE_ENV=production
 ```
 
@@ -120,7 +120,9 @@ Use `railway.web.json` como config file do serviço:
 VITE_API_URL=https://sua-api.up.railway.app/api
 ```
 
-## Usuários iniciais (após RUN_SEEDS=true)
+## Usuarios iniciais de exemplo
+
+Esses usuarios so sao criados quando `RUN_SEEDS=true` e `ALLOW_DEV_SEEDS=true`.
 
 | Login        | Senha       | Perfil       |
 |--------------|-------------|--------------|
@@ -137,6 +139,25 @@ VITE_API_URL=https://sua-api.up.railway.app/api
 
 - O Railway injeta a variável `PORT`; o container respeita essa porta.
 - Migrations são seguras para produção: cada arquivo roda apenas uma vez.
-- Seeds são opt-in: só rodam quando `RUN_SEEDS=true`.
+- Seeds sao opt-in e protegidos: rodam somente com `RUN_SEEDS=true` e, em producao, tambem `ALLOW_DEV_SEEDS=true`.
 - O health check é `/api/health` (monolito e API) e `/` (web separada).
 - O frontend separado usa Caddy para servir SPA com fallback para `index.html`.
+
+## Logs de deploy
+
+O container agora imprime um resumo no boot com Node, modo (`SERVE_CLIENT`),
+flags de migrations/seeds, storage e configuracao do banco com senha mascarada.
+
+Variaveis uteis:
+
+- `LOG_LEVEL=info` ou `debug`
+- `LOG_FORMAT=text` ou `json`
+- `LOG_STACKS=true` para stack traces nos erros
+- `LOG_SQL_ON_ERROR=true` para incluir ate 2000 caracteres do SQL que falhou
+- `WAIT_FOR_DB=true` e `DB_WAIT_TIMEOUT_SECONDS=60` para aguardar o MySQL antes de iniciar
+
+Para acompanhar localmente:
+
+```bash
+npm run docker:logs
+```

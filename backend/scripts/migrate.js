@@ -1,94 +1,151 @@
 /**
- * migrate.js — Runner de migrations (chamado pelo entrypoint)
- * Aplica arquivos SQL de database/migrations/ em ordem, apenas uma vez.
- * Seguro para produção: cada migration roda apenas uma vez.
+ * Runs SQL migrations from database/migrations in filename order.
+ * Each migration is recorded in _migrations and applied only once.
  */
-const path  = require('path');
-const fs    = require('fs');
+const path = require('path');
+const fs = require('fs');
+const mysql = require('mysql2/promise');
 
-// Resolve dotenv se existir (dev local)
 const envFile = path.resolve(__dirname, '../.env');
 if (fs.existsSync(envFile)) require('dotenv').config({ path: envFile });
 
-const mysql = require('mysql2/promise');
-
-// Reutiliza a mesma lógica de conexão do database.js
-function getDbConfig() {
-  const url = process.env.MYSQL_URL || process.env.DATABASE_URL || process.env.DB_URL;
-  if (url) {
-    try {
-      const u = new URL(url);
-      return { host:u.hostname, port:parseInt(u.port||'3306'), database:u.pathname.replace(/^\//,''), user:u.username, password:u.password };
-    } catch {}
-  }
-  if (process.env.MYSQLHOST) {
-    return { host:process.env.MYSQLHOST, port:parseInt(process.env.MYSQLPORT||'3306'), database:process.env.MYSQLDATABASE||'portal_manutencao', user:process.env.MYSQLUSER, password:process.env.MYSQLPASSWORD };
-  }
-  return { host:process.env.DB_HOST||'localhost', port:parseInt(process.env.DB_PORT||'3306'), database:process.env.DB_NAME||'portal_manutencao', user:process.env.DB_USER, password:process.env.DB_PASSWORD };
-}
+const logger = require('../src/config/logger');
+const {
+  resolveDbConfig,
+  dbConnectionOptions,
+  summarizeDbConfig,
+  dbConfigProblems,
+} = require('../src/config/dbConfig');
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../database/migrations');
-const SCHEMA_FILE    = path.resolve(__dirname, '../../database/schema.sql');
+const SCHEMA_FILE = path.resolve(__dirname, '../../database/schema.sql');
 
 function stripSeedBlocks(sql) {
   return sql.replace(/^\s*--\s*@seed:start[\s\S]*?^\s*--\s*@seed:end\s*$/gm, '');
 }
 
+async function timedStep(name, meta, fn) {
+  const startedAt = Date.now();
+  logger.info(`${name} started`, meta);
+  try {
+    const result = await fn();
+    logger.info(`${name} finished`, {
+      ...meta,
+      durationMs: Date.now() - startedAt,
+    });
+    return result;
+  } catch (error) {
+    logger.error(`${name} failed`, {
+      ...meta,
+      durationMs: Date.now() - startedAt,
+      error,
+    });
+    throw error;
+  }
+}
+
 async function run() {
-  const cfg    = getDbConfig();
-  const { database, ...serverCfg } = cfg;
-  const conn   = await mysql.createConnection({ ...serverCfg, multipleStatements: true });
+  const { config, warnings } = resolveDbConfig();
+  const dbSummary = summarizeDbConfig(config);
+  const { database, ...serverOptions } = dbConnectionOptions(config);
+
+  warnings.forEach((warning) => logger.warn('Database configuration warning', { warning }));
+
+  const problems = dbConfigProblems(config);
+  if (problems.length) {
+    logger.warn('Database configuration looks incomplete', {
+      db: dbSummary,
+      problems,
+    });
+  }
+
+  logger.info('Migration runner configured', {
+    db: dbSummary,
+    migrationsDir: MIGRATIONS_DIR,
+    schemaFile: SCHEMA_FILE,
+  });
+
+  const conn = await timedStep('Database server connection', { db: dbSummary }, () =>
+    mysql.createConnection({
+      ...serverOptions,
+      multipleStatements: true,
+      connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT_MS || '10000', 10),
+    }));
 
   try {
-    // Garante que o banco existe
-    await conn.query(`CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
-    await conn.query(`USE \`${database}\``);
+    await timedStep('Database selection', { database }, async () => {
+      await conn.query(`CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+      await conn.query(`USE \`${database}\``);
+      await conn.query(`
+        CREATE TABLE IF NOT EXISTS _migrations (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          filename VARCHAR(255) NOT NULL UNIQUE,
+          applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+    });
 
-    // Cria tabela de controle de migrations
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS _migrations (
-        id         INT AUTO_INCREMENT PRIMARY KEY,
-        filename   VARCHAR(255) NOT NULL UNIQUE,
-        applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `);
-
-    // Aplica schema base se migrations dir não existir
     if (!fs.existsSync(MIGRATIONS_DIR)) {
+      logger.warn('Migrations directory not found; falling back to schema.sql', {
+        migrationsDir: MIGRATIONS_DIR,
+      });
+
       const [applied] = await conn.query('SELECT filename FROM _migrations WHERE filename=?', ['schema.sql']);
       if (!applied.length && fs.existsSync(SCHEMA_FILE)) {
-        console.log('Aplicando schema.sql...');
-        const sql = stripSeedBlocks(fs.readFileSync(SCHEMA_FILE, 'utf8'));
-        await conn.query(sql);
-        await conn.query('INSERT INTO _migrations (filename) VALUES (?)', ['schema.sql']);
-        console.log('✅ schema.sql aplicado.');
+        await timedStep('schema.sql migration', { file: SCHEMA_FILE }, async () => {
+          const sql = stripSeedBlocks(fs.readFileSync(SCHEMA_FILE, 'utf8'));
+          await conn.query(sql);
+          await conn.query('INSERT INTO _migrations (filename) VALUES (?)', ['schema.sql']);
+        });
+      } else {
+        logger.info('schema.sql already applied or missing', {
+          applied: Boolean(applied.length),
+          exists: fs.existsSync(SCHEMA_FILE),
+        });
       }
       return;
     }
 
-    // Lê e ordena migrations
     const files = fs.readdirSync(MIGRATIONS_DIR)
-      .filter(f => f.endsWith('.sql'))
+      .filter((file) => file.endsWith('.sql'))
       .sort();
+
+    logger.info('Migration files discovered', {
+      count: files.length,
+      files,
+    });
+
+    let appliedCount = 0;
+    let skippedCount = 0;
 
     for (const file of files) {
       const [rows] = await conn.query('SELECT id FROM _migrations WHERE filename=?', [file]);
-      if (rows.length) { console.log(`  ↩  Já aplicado: ${file}`); continue; }
+      if (rows.length) {
+        skippedCount += 1;
+        logger.info('Migration already applied', { file });
+        continue;
+      }
 
-      console.log(`  ⚙  Aplicando: ${file}`);
-      const sql = stripSeedBlocks(fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8'));
-      await conn.query(sql);
-      await conn.query('INSERT INTO _migrations (filename) VALUES (?)', [file]);
-      console.log(`  ✅ ${file}`);
+      await timedStep('Migration apply', { file }, async () => {
+        const sql = stripSeedBlocks(fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8'));
+        await conn.query(sql);
+        await conn.query('INSERT INTO _migrations (filename) VALUES (?)', [file]);
+      });
+      appliedCount += 1;
     }
 
-    console.log('\n✅ Migrations concluídas.');
+    logger.info('Migrations completed', {
+      discovered: files.length,
+      applied: appliedCount,
+      skipped: skippedCount,
+    });
   } finally {
     await conn.end();
+    logger.info('Migration database connection closed', { db: dbSummary });
   }
 }
 
-run().catch(err => {
-  console.error('❌ Migration falhou:', err.message);
+run().catch((error) => {
+  logger.error('Migration runner failed', { error });
   process.exit(1);
 });

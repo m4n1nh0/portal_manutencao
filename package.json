@@ -18,7 +18,7 @@
     "docker:split":    "docker compose --profile split up --build",
     "docker:down":     "docker compose down",
     "docker:reset":    "docker compose down -v && docker compose --profile monolith up --build",
-    "docker:logs":     "docker compose logs -f",
+    "docker:logs":     "docker compose logs -f --tail=200",
     "docker:mysql":    "docker compose exec mysql mysql -uroot -proot123 portal_manutencao"
   },
   "devDependencies": {

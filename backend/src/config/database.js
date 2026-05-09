@@ -1,61 +1,49 @@
 const mysql = require('mysql2/promise');
+const logger = require('./logger');
+const {
+  resolveDbConfig,
+  dbConnectionOptions,
+  summarizeDbConfig,
+  dbConfigProblems,
+} = require('./dbConfig');
 
-// ── Suporte às variáveis do Railway MySQL ──────────────────────
-// Railway injeta: MYSQL_URL, MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD, MYSQLDATABASE
-// Também aceita: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (padrão)
-function getDbConfig() {
-  // Prioridade 1: URL completa (MYSQL_URL ou DATABASE_URL)
-  const url = process.env.MYSQL_URL || process.env.DATABASE_URL || process.env.DB_URL;
-  if (url) {
-    try {
-      const u = new URL(url);
-      return {
-        host:     u.hostname,
-        port:     parseInt(u.port || '3306'),
-        database: u.pathname.replace(/^\//, ''),
-        user:     u.username,
-        password: u.password,
-      };
-    } catch (e) {
-      console.warn('⚠️  MYSQL_URL inválida, usando variáveis individuais.');
-    }
-  }
+const { config: dbConfig, warnings } = resolveDbConfig();
+const dbSummary = summarizeDbConfig(dbConfig);
 
-  // Prioridade 2: Variáveis nativas do Railway (MYSQLHOST etc.)
-  if (process.env.MYSQLHOST) {
-    return {
-      host:     process.env.MYSQLHOST,
-      port:     parseInt(process.env.MYSQLPORT || '3306'),
-      database: process.env.MYSQLDATABASE || 'portal_manutencao',
-      user:     process.env.MYSQLUSER,
-      password: process.env.MYSQLPASSWORD,
-    };
-  }
+warnings.forEach((warning) => logger.warn('Database configuration warning', { warning }));
 
-  // Prioridade 3: Variáveis convencionais DB_*
-  return {
-    host:     process.env.DB_HOST     || 'localhost',
-    port:     parseInt(process.env.DB_PORT || '3306'),
-    database: process.env.DB_NAME     || 'portal_manutencao',
-    user:     process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-  };
+const problems = dbConfigProblems(dbConfig);
+if (problems.length) {
+  logger.warn('Database configuration looks incomplete', {
+    db: dbSummary,
+    problems,
+  });
 }
 
-const dbConfig = getDbConfig();
-
 const pool = mysql.createPool({
-  ...dbConfig,
+  ...dbConnectionOptions(dbConfig),
   waitForConnections: true,
-  connectionLimit:    parseInt(process.env.DB_POOL_MAX || '10'),
-  charset:            'utf8mb4',
-  timezone:           'local',
-  enableKeepAlive:    true,
+  connectionLimit: parseInt(process.env.DB_POOL_MAX || '10', 10),
+  charset: 'utf8mb4',
+  timezone: 'local',
+  enableKeepAlive: true,
   keepAliveInitialDelay: 0,
+  connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT_MS || '10000', 10),
 });
 
+logger.info('Database pool configured', { db: dbSummary });
+
 pool.getConnection()
-  .then(c => { c.release(); console.log(`✅ MySQL conectado em ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`); })
-  .catch(e => { console.error('❌ MySQL:', e.message); process.exit(1); });
+  .then((connection) => {
+    connection.release();
+    logger.info('Database connection verified', { db: dbSummary });
+  })
+  .catch((error) => {
+    logger.error('Database connection failed during startup', {
+      db: dbSummary,
+      error,
+    });
+    process.exit(1);
+  });
 
 module.exports = pool;

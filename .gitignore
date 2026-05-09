@@ -36,6 +36,7 @@ Thumbs.db
 # Build outputs
 dist/
 frontend/dist/
+backend/public/
 backend/dist/
 
 # Misc
