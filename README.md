@@ -14,6 +14,7 @@ npm run dev
 
 ## Usuarios iniciais
 Criados apenas em desenvolvimento (`NODE_ENV=development`) pelo `npm run seed` ou `npm run docker:dev`.
+Os scripts `backend/scripts/seed.js` e `backend/scripts/db-setup.js` criam esses usuarios de forma idempotente; se o login ja existir, ele e mantido.
 
 
 admin / Admin@123
@@ -23,6 +24,8 @@ subsindico / Sub@123
 conselho / Cons@123
 campo / Campo@123
 morador / Mor@123
+
+O usuario `conselho` representa o perfil de conselheiro para analise e aprovacao de cadastros, sem acesso administrativo completo.
 
 Os dados demonstrativos ficam em `database/seeds/*.sql`.
 As migrations em `database/migrations/*.sql` devem conter apenas estrutura/evolucao do banco.

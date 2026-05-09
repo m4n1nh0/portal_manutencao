@@ -133,6 +133,7 @@ VITE_API_URL=https://sua-api.up.railway.app/api
 ## Usuarios iniciais de exemplo
 
 Esses usuarios so sao criados quando `RUN_SEEDS=true` e `ALLOW_DEV_SEEDS=true`.
+O seed e idempotente: usuarios existentes nao sao recriados nem sobrescritos.
 
 | Login        | Senha       | Perfil       |
 |--------------|-------------|--------------|
