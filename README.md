@@ -16,14 +16,15 @@ npm run dev
 Criados apenas em desenvolvimento (`NODE_ENV=development`) pelo `npm run seed` ou `npm run docker:dev`.
 Os scripts `backend/scripts/seed.js` e `backend/scripts/db-setup.js` criam esses usuarios de forma idempotente; se o login ja existir, ele e mantido.
 
-
-admin / Admin@123
-supervisor / Super@123
-sindico / Sind@123
-subsindico / Sub@123
-conselho / Cons@123
-campo / Campo@123
-morador / Mor@123
+| Login        | Senha       | Perfil        |
+|--------------|-------------|---------------|
+| `admin`      | `Admin@123` | Administrador |
+| `supervisor` | `Super@123` | Supervisor    |
+| `sindico`    | `Sind@123`  | Sindico       |
+| `subsindico` | `Sub@123`   | Subsindico    |
+| `conselho`   | `Cons@123`  | Conselho      |
+| `campo`      | `Campo@123` | Equipe Campo  |
+| `morador`    | `Mor@123`   | Morador       |
 
 O usuario `conselho` representa o perfil de conselheiro para analise e aprovacao de cadastros, sem acesso administrativo completo.
 

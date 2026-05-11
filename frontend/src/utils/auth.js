@@ -1,12 +1,12 @@
 // utils/auth.js - Perfis e permissoes (espelho do backend)
 export const ROLES = {
-  admin:      { label:'Administrador', emoji:'AD', short:'Admin',      color:'#d99a18', rgb:'217 154 24', surface:'#fff4d6', ink:'#201404', signature:'Gestao total' },
-  supervisor: { label:'Supervisor',    emoji:'SV', short:'Supervisor', color:'#2f7bdc', rgb:'47 123 220', surface:'#e5f0ff', ink:'#06182f', signature:'Operacao' },
-  sindico:    { label:'Sindico',       emoji:'SI', short:'Sindico',    color:'#168a55', rgb:'22 138 85', surface:'#e2f7ed', ink:'#062115', signature:'Administracao' },
-  subsindico: { label:'Subsindico',    emoji:'SS', short:'Subsindico', color:'#0f8b8d', rgb:'15 139 141', surface:'#ddf7f7', ink:'#041f20', signature:'Apoio' },
-  conselho:   { label:'Conselho',      emoji:'CO', short:'Conselho',   color:'#7b5bd6', rgb:'123 91 214', surface:'#eee9ff', ink:'#17112d', signature:'Fiscalizacao' },
-  morador:    { label:'Morador',       emoji:'MO', short:'Morador',    color:'#4f6776', rgb:'79 103 118', surface:'#e8eef1', ink:'#101a20', signature:'Minha area' },
-  campo:      { label:'Equipe Campo',  emoji:'EC', short:'Campo',      color:'#d66f1f', rgb:'214 111 31', surface:'#fff0e2', ink:'#241105', signature:'Execucao' },
+  admin:      { label:'Administrador', emoji:'AD', short:'Admin',      color:'#5148f5', rgb:'81 72 245', surface:'#ebeaff', ink:'#12113a', signature:'Gestao total' },
+  supervisor: { label:'Supervisor',    emoji:'SV', short:'Supervisor', color:'#2f7cf6', rgb:'47 124 246', surface:'#e8f1ff', ink:'#06183a', signature:'Operacao' },
+  sindico:    { label:'Sindico',       emoji:'SI', short:'Sindico',    color:'#18a874', rgb:'24 168 116', surface:'#e4f8ef', ink:'#052417', signature:'Administracao' },
+  subsindico: { label:'Subsindico',    emoji:'SS', short:'Subsindico', color:'#13a8b4', rgb:'19 168 180', surface:'#dff7f9', ink:'#042326', signature:'Apoio' },
+  conselho:   { label:'Conselho',      emoji:'CO', short:'Conselho',   color:'#6c5ce7', rgb:'108 92 231', surface:'#eeebff', ink:'#17123b', signature:'Fiscalizacao' },
+  morador:    { label:'Morador',       emoji:'MO', short:'Morador',    color:'#667085', rgb:'102 112 133', surface:'#edf1f6', ink:'#121822', signature:'Minha area' },
+  campo:      { label:'Equipe Campo',  emoji:'EC', short:'Campo',      color:'#f06f3a', rgb:'240 111 58', surface:'#fff0e9', ink:'#2f1208', signature:'Execucao' },
 };
 
 export const PERMISSOES = {
