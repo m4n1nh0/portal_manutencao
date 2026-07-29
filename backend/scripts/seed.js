@@ -20,11 +20,20 @@ const {
 } = require('../src/config/dbConfig');
 
 const SEEDS_DIR = path.resolve(__dirname, '../../database/seeds');
+const SLUG_DEMO = process.env.TENANT_DEFAULT_SLUG || 'principal';
 
 function isDevSeedAllowed() {
   const env = process.env.NODE_ENV || 'development';
   return env === 'development' || process.env.ALLOW_DEV_SEEDS === 'true';
 }
+
+// Conta do provedor do SaaS (portal comercial). Fica fora de qualquer condomínio.
+const SUPERADMIN = {
+  login: process.env.SUPERADMIN_LOGIN || 'provedor',
+  nome: process.env.SUPERADMIN_NOME || 'Provedor do Sistema',
+  email: process.env.SUPERADMIN_EMAIL || 'provedor@portal.local',
+  senha: process.env.SUPERADMIN_SENHA || 'Provedor@123',
+};
 
 const USERS = [
   { login: 'admin', nome: 'Administrador', email: 'admin@condominio.com', senha: 'Admin@123', perfil: 'admin' },
@@ -104,6 +113,18 @@ async function run() {
 
     await conn.query(`USE \`${config.database}\``);
 
+    // Multi-tenant: todo dado de demonstração pertence a um condomínio.
+    const [[condominio]] = await conn.query('SELECT id, nome FROM condominios WHERE slug = ?', [SLUG_DEMO]);
+    if (!condominio) {
+      logger.error('Condomínio de demonstração não encontrado; rode as migrations antes do seed', {
+        slug: SLUG_DEMO,
+        hint: 'npm run migrate',
+      });
+      process.exitCode = 1;
+      return;
+    }
+    logger.info('Seed vinculado ao condomínio', { slug: SLUG_DEMO, nome: condominio.nome });
+
     if (fs.existsSync(SEEDS_DIR)) {
       const seedFiles = fs.readdirSync(SEEDS_DIR)
         .filter((file) => file.endsWith('.sql'))
@@ -128,11 +149,11 @@ async function run() {
     let inserted = 0;
     let skipped = 0;
 
-    await timedStep('Initial users seed', { userCount: USERS.length }, async () => {
+    await timedStep('Initial users seed', { userCount: USERS.length, condominio: SLUG_DEMO }, async () => {
       for (const user of USERS) {
         const [[existing]] = await conn.query(
-          'SELECT id FROM usuarios WHERE login=? OR email=?',
-          [user.login, user.email],
+          'SELECT id FROM usuarios WHERE condominio_id=? AND (login=? OR email=?)',
+          [condominio.id, user.login, user.email],
         );
 
         if (existing) {
@@ -144,10 +165,11 @@ async function run() {
         const hash = await bcrypt.hash(user.senha, 12);
         await conn.query(
           `INSERT INTO usuarios
-            (id, login, nome, email, telefone, cpf, unidade, senha_hash, perfil, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'aprovado')`,
+            (id, condominio_id, login, nome, email, telefone, cpf, unidade, senha_hash, perfil, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'aprovado')`,
           [
             uuidv4(),
+            condominio.id,
             user.login,
             user.nome,
             user.email,
@@ -162,6 +184,25 @@ async function run() {
         inserted += 1;
         logger.info('Seed user inserted', { login: user.login, perfil: user.perfil });
       }
+    });
+
+    // Provedor do SaaS: não pertence a condomínio nenhum.
+    await timedStep('Superadmin seed', { login: SUPERADMIN.login }, async () => {
+      const [[existing]] = await conn.query(
+        "SELECT id FROM usuarios WHERE condominio_id IS NULL AND perfil='superadmin' AND (login=? OR email=?)",
+        [SUPERADMIN.login, SUPERADMIN.email],
+      );
+      if (existing) {
+        logger.info('Superadmin já existe', { login: SUPERADMIN.login });
+        return;
+      }
+      const hash = await bcrypt.hash(SUPERADMIN.senha, 12);
+      await conn.query(
+        `INSERT INTO usuarios (id, condominio_id, login, nome, email, senha_hash, perfil, status)
+         VALUES (?, NULL, ?, ?, ?, ?, 'superadmin', 'aprovado')`,
+        [uuidv4(), SUPERADMIN.login, SUPERADMIN.nome, SUPERADMIN.email, hash],
+      );
+      logger.info('Superadmin criado', { login: SUPERADMIN.login, email: SUPERADMIN.email });
     });
 
     logger.info('Seeds completed', { inserted, skipped });

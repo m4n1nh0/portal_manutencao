@@ -20,6 +20,13 @@ import Cadastros from './pages/Cadastros';
 import Perfil from './pages/Perfil';
 import Agendamento from './pages/Agendamento';
 
+// Portal do provedor (superadmin)
+import ProvedorDashboard from './pages/provedor/Dashboard';
+import ProvedorCondominios from './pages/provedor/Condominios';
+import ProvedorCondominioDetalhe from './pages/provedor/CondominioDetalhe';
+import ProvedorPlanos from './pages/provedor/Planos';
+import ProvedorFaturas from './pages/provedor/Faturas';
+
 // Components
 import Layout from './components/Layout';
 import { Spinner, StatusBadge, ConfirmDialog } from './components/UI';
@@ -32,14 +39,28 @@ function PrivateRoute({ children, roles }) {
   const { user, loading } = useAuth();
   if (loading) return <div id="loading"><div className="spinner"/></div>;
   if (!user)   return <Navigate to="/login" replace/>;
-  if (roles && !roles.includes(user.perfil)) return <Navigate to={getHomePath(user.perfil)} replace/>;
+  // O superadmin em suporte a um condomínio passa por qualquer exigência de perfil.
+  if (roles && !roles.includes(user.perfil) && user.perfil !== 'superadmin') {
+    return <Navigate to={getHomePath(user.perfil, user)} replace/>;
+  }
+  return children;
+}
+
+/** Rotas do portal comercial: só o provedor, e só fora de um condomínio. */
+function ProvedorRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div id="loading"><div className="spinner"/></div>;
+  if (!user) return <Navigate to="/login" replace/>;
+  if (user.perfil !== 'superadmin') return <Navigate to={getHomePath(user.perfil, user)} replace/>;
+  // Sessão de suporte dentro de um condomínio não abre o painel comercial.
+  if (user.condominio) return <Navigate to="/app" replace/>;
   return children;
 }
 
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <div id="loading"><div className="spinner"/></div>;
-  if (user)    return <Navigate to={getHomePath(user.perfil)} replace/>;
+  if (user)    return <Navigate to={getHomePath(user.perfil, user)} replace/>;
   return children;
 }
 
@@ -214,6 +235,13 @@ function AppRoutes() {
       <Route path="/register" element={<PublicRoute><Register/></PublicRoute>}/>
       <Route path="/"         element={<Navigate to="/login" replace/>}/>
 
+      {/* Portal do provedor — admin.<dominio> */}
+      <Route path="/provedor"                   element={<ProvedorRoute><ProvedorDashboard/></ProvedorRoute>}/>
+      <Route path="/provedor/condominios"       element={<ProvedorRoute><ProvedorCondominios/></ProvedorRoute>}/>
+      <Route path="/provedor/condominios/:id"   element={<ProvedorRoute><ProvedorCondominioDetalhe/></ProvedorRoute>}/>
+      <Route path="/provedor/planos"            element={<ProvedorRoute><ProvedorPlanos/></ProvedorRoute>}/>
+      <Route path="/provedor/faturas"           element={<ProvedorRoute><ProvedorFaturas/></ProvedorRoute>}/>
+
       <Route path="/app" element={
         <PrivateRoute roles={['admin','supervisor','sindico','subsindico','conselho','campo']}>
           <Dashboard/>
@@ -235,9 +263,17 @@ function AppRoutes() {
       <Route path="/app/observacoes" element={<PrivateRoute roles={['admin','supervisor','sindico','subsindico','conselho']}><Observacoes/></PrivateRoute>}/>
       <Route path="/app/cadastros"  element={<PrivateRoute roles={['admin','supervisor','sindico']}><Cadastros/></PrivateRoute>}/>
 
-      <Route path="*" element={<Navigate to="/app" replace/>}/>
+      <Route path="*" element={<RedirecionaParaHome/>}/>
     </Routes>
   );
+}
+
+/** Rota desconhecida: leva cada perfil para a sua casa (provedor ou condomínio). */
+function RedirecionaParaHome() {
+  const { user, loading } = useAuth();
+  if (loading) return <div id="loading"><div className="spinner"/></div>;
+  if (!user) return <Navigate to="/login" replace/>;
+  return <Navigate to={getHomePath(user.perfil, user)} replace/>;
 }
 
 export default function App() {

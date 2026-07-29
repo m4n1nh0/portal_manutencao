@@ -1,7 +1,11 @@
 -- Development seed: task portfolio with visible progress for demo and QA.
+-- Multi-tenant: tudo pertence ao condominio de demonstracao.
+
+SET @cond := (SELECT id FROM condominios WHERE slug = 'principal');
 
 DELETE FROM tarefas
-WHERE ciclo = 'diario'
+WHERE condominio_id = @cond
+  AND ciclo = 'diario'
   AND setor REGEXP '^S[0-9]+$'
   AND (observacoes IS NULL OR observacoes = '' OR observacoes LIKE 'Demo:%');
 
@@ -72,12 +76,13 @@ VALUES
 ('anual','Incêndio','','Recarga de extintores','Prestador','Alta','Concluído','Demo: recarga e lacres conferidos.',DATE_SUB(NOW(), INTERVAL 12 DAY)),
 ('anual','Piscinas','','Troca do elemento filtrante','Prestador','Alta','Pendente','Demo: compra do elemento filtrante em andamento.',DATE_SUB(NOW(), INTERVAL 2 DAY));
 
-INSERT INTO tarefas (ciclo,setor,area,atividade,equipe,prioridade,status,observacoes,atualizado_em)
-SELECT s.ciclo,s.setor,s.area,s.atividade,s.equipe,s.prioridade,s.status,s.observacoes,s.atualizado_em
+INSERT INTO tarefas (condominio_id,ciclo,setor,area,atividade,equipe,prioridade,status,observacoes,atualizado_em)
+SELECT @cond,s.ciclo,s.setor,s.area,s.atividade,s.equipe,s.prioridade,s.status,s.observacoes,s.atualizado_em
 FROM seed_tarefas_demo s
 WHERE NOT EXISTS (
   SELECT 1 FROM tarefas t
-  WHERE t.ciclo = s.ciclo
+  WHERE t.condominio_id = @cond
+    AND t.ciclo = s.ciclo
     AND t.setor = s.setor
     AND COALESCE(t.area,'') = COALESCE(s.area,'')
     AND t.atividade = s.atividade
@@ -94,7 +99,7 @@ SET t.equipe = s.equipe,
     t.status = s.status,
     t.observacoes = s.observacoes,
     t.atualizado_em = s.atualizado_em
-WHERE COALESCE(t.observacoes,'') = ''
-   OR t.observacoes LIKE 'Demo:%';
+WHERE t.condominio_id = @cond
+  AND (COALESCE(t.observacoes,'') = '' OR t.observacoes LIKE 'Demo:%');
 
 DROP TEMPORARY TABLE seed_tarefas_demo;

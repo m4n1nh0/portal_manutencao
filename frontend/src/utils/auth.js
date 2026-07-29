@@ -1,5 +1,6 @@
 // utils/auth.js - Perfis e permissoes (espelho do backend)
 export const ROLES = {
+  superadmin: { label:'Provedor',      emoji:'PR', short:'Provedor',   color:'#0f766e', rgb:'15 118 110', surface:'#dcfaf5', ink:'#032420', signature:'Gestao do SaaS' },
   admin:      { label:'Administrador', emoji:'AD', short:'Admin',      color:'#5148f5', rgb:'81 72 245', surface:'#ebeaff', ink:'#12113a', signature:'Gestao total' },
   supervisor: { label:'Supervisor',    emoji:'SV', short:'Supervisor', color:'#2f7cf6', rgb:'47 124 246', surface:'#e8f1ff', ink:'#06183a', signature:'Operacao' },
   sindico:    { label:'Sindico',       emoji:'SI', short:'Sindico',    color:'#18a874', rgb:'24 168 116', surface:'#e4f8ef', ink:'#052417', signature:'Administracao' },
@@ -10,6 +11,7 @@ export const ROLES = {
 };
 
 export const PERMISSOES = {
+  superadmin: { canEdit:true,  canAdd:true,  canDelete:true,  seeAll:true,  seeUsers:true,  canPhoto:true,  canApprove:true,  canProvider:true },
   admin:      { canEdit:true,  canAdd:true,  canDelete:true,  seeAll:true,  seeUsers:true,  canPhoto:true,  canApprove:true  },
   supervisor: { canEdit:true,  canAdd:true,  canDelete:true,  seeAll:true,  seeUsers:true,  canPhoto:true,  canApprove:true  },
   sindico:    { canEdit:true,  canAdd:true,  canDelete:true,  seeAll:true,  seeUsers:true,  canPhoto:true,  canApprove:true  },
@@ -21,12 +23,20 @@ export const PERMISSOES = {
 
 export function getRoleInfo(perfil) { return ROLES[perfil] || ROLES.morador; }
 export function getPerms(perfil)    { return PERMISSOES[perfil] || {}; }
-export function getHomePath(perfil) { return perfil === 'morador' ? '/app/morador' : '/app'; }
+
+// O superadmin logado no portal do provedor vai para /provedor; quando entra
+// num condomínio para dar suporte, o token traz condominio_id e ele cai no /app.
+export function getHomePath(perfil, usuario) {
+  if (perfil === 'superadmin' && !usuario?.condominio) return '/provedor';
+  return perfil === 'morador' ? '/app/morador' : '/app';
+}
 
 export function saveSession(usuario, token, refresh) {
-  localStorage.setItem('pm_token',   token);
-  localStorage.setItem('pm_refresh', refresh);
-  localStorage.setItem('pm_user',    JSON.stringify(usuario));
+  localStorage.setItem('pm_token', token);
+  // Acesso de suporte do provedor vem sem refresh: a sessao expira sozinha.
+  if (refresh) localStorage.setItem('pm_refresh', refresh);
+  else localStorage.removeItem('pm_refresh');
+  localStorage.setItem('pm_user', JSON.stringify(usuario));
 }
 
 export function loadSession() {

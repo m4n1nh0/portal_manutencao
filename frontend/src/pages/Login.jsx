@@ -6,6 +6,7 @@ import api from '../utils/api';
 import { PasswordInput } from '../components/UI';
 import ThemeToggle from '../components/ThemeToggle';
 import { getHomePath } from '../utils/auth';
+import { getDominioBase } from '../utils/tenant';
 
 export default function Login() {
   const { login }  = useAuth();
@@ -20,11 +21,47 @@ export default function Login() {
   const [otp,       setOtp]       = useState(['','','','','','']);
   const [loading,   setLoading]   = useState(false);
   const [erro,      setErro]      = useState('');
+  const [contexto,  setContexto]  = useState(null); // condomínio do subdomínio
   const otpRefs    = [useRef(),useRef(),useRef(),useRef(),useRef(),useRef()];
 
   useEffect(() => {
     if (step === 'otp') otpRefs[0].current?.focus();
   }, [step]);
+
+  // Identidade do subdomínio: nome/logo do condomínio ou portal do provedor.
+  useEffect(() => {
+    (async () => {
+      try {
+        setContexto(await api.contexto());
+      } catch (e) {
+        setContexto({ tipo: 'desconhecido', erro: e.message });
+      }
+    })();
+  }, []);
+
+  // Acesso de suporte: o portal do provedor abre este endereço com o token
+  // de impersonação no fragmento da URL (que nunca vai para o servidor).
+  useEffect(() => {
+    const match = window.location.hash.match(/suporte=([^&]+)/);
+    if (!match) return;
+    const token = decodeURIComponent(match[1]);
+    window.history.replaceState(null, '', window.location.pathname);
+    (async () => {
+      setLoading(true);
+      try {
+        api.clearTokens();
+        api.setTokens(token, null);
+        const { usuario } = await api.me();
+        login(usuario, token, null);
+        navigate(getHomePath(usuario.perfil, usuario));
+      } catch (e) {
+        api.clearTokens();
+        setErro(`Acesso de suporte inválido ou expirado: ${e.message}`);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   // ── Passo 1: senha ────────────────────────────────────────────
   async function handleLogin(e) {
@@ -38,7 +75,7 @@ export default function Login() {
         setStep('otp');
       } else {
         login(res.usuario, res.token, res.refreshToken);
-        navigate(getHomePath(res.usuario?.perfil));
+        navigate(getHomePath(res.usuario?.perfil, res.usuario));
       }
     } catch(e) {
       setErro(e.message);
@@ -76,15 +113,54 @@ export default function Login() {
     }
   }
 
+  const ehProvedor        = contexto?.tipo === 'provedor';
+  const condominio        = contexto?.tipo === 'condominio' ? contexto.condominio : null;
+  const contextoInvalido  = contexto?.tipo === 'desconhecido';
+  const acessoBloqueado   = contexto?.acesso && contexto.acesso.permiteLogin === false;
+  const dominioBase       = getDominioBase();
+
   return (
     <div id="login-screen">
       <ThemeToggle className="auth-theme-toggle" />
       <div className="login-card" style={{ animation:'slideUp .4s cubic-bezier(.16,1,.3,1)' }}>
         <div className="login-logo">
-          <span className="login-icon">🏘️</span>
-          <h1>Portal de Manutenção</h1>
-          <p>Acesso restrito por perfil</p>
+          {ehProvedor ? (
+            <>
+              <span className="login-icon">🛠️</span>
+              <h1>Portal do Provedor</h1>
+              <p>Gestão comercial dos condomínios</p>
+            </>
+          ) : condominio ? (
+            <>
+              {condominio.logo_url
+                ? <img src={condominio.logo_url} alt={condominio.nome}
+                    style={{maxHeight:'56px',maxWidth:'180px',objectFit:'contain',marginBottom:'8px'}}/>
+                : <span className="login-icon">🏘️</span>}
+              <h1>{condominio.nome}</h1>
+              <p>Portal de Manutenção</p>
+            </>
+          ) : (
+            <>
+              <span className="login-icon">🏘️</span>
+              <h1>Portal de Manutenção</h1>
+              <p>Acesso restrito por perfil</p>
+            </>
+          )}
         </div>
+
+        {contextoInvalido && (
+          <div className="form-error" style={{marginBottom:'14px'}}>
+            {contexto?.erro || 'Condomínio não identificado neste endereço.'}
+            <div style={{marginTop:'6px',fontSize:'12px',opacity:.85}}>
+              Acesse pelo endereço do seu condomínio, no formato
+              {' '}<strong>seucondominio.{dominioBase}</strong>.
+            </div>
+          </div>
+        )}
+
+        {acessoBloqueado && (
+          <div className="form-error" style={{marginBottom:'14px'}}>{contexto.acesso.mensagem}</div>
+        )}
 
         {step === 'login' ? (
           <form onSubmit={handleLogin}>
@@ -100,9 +176,11 @@ export default function Login() {
               {loading ? '⏳ Verificando…' : 'Entrar'}
             </button>
             {erro && <div className="form-error">{erro}</div>}
-            <div className="login-hint">
-              É morador? <Link to="/register" style={{color:'var(--acc)'}}>Solicite seu acesso</Link>
-            </div>
+            {!ehProvedor && (
+              <div className="login-hint">
+                É morador? <Link to="/register" style={{color:'var(--acc)'}}>Solicite seu acesso</Link>
+              </div>
+            )}
           </form>
         ) : (
           <div>

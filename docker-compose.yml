@@ -47,6 +47,22 @@ services:
       JWT_SECRET:      dev_monolith_change_me_64_chars_minimum_portal_local_secret
       CLIENT_URL:      http://localhost:3001
       APP_URL:         http://localhost:3001
+      # ── Multi-tenant ──
+      # Em localhost nao ha subdominio real, entao o fallback fica ligado.
+      # Em producao: APP_DOMAIN=seudominio.com.br e TENANT_FALLBACK=false.
+      APP_DOMAIN:      ${APP_DOMAIN:-localhost}
+      APP_PROTOCOL:    ${APP_PROTOCOL:-http}
+      APP_PORT_PUBLICA: ${APP_PORT_PUBLICA:-3001}
+      PROVIDER_SUBDOMAIN: ${PROVIDER_SUBDOMAIN:-admin,painel}
+      TENANT_HOSTS:    ${TENANT_HOSTS:-}
+      TENANT_FALLBACK: ${TENANT_FALLBACK:-true}
+      TENANT_DEFAULT_SLUG: ${TENANT_DEFAULT_SLUG:-principal}
+      TRIAL_DIAS:      ${TRIAL_DIAS:-14}
+      SUSPENSAO_APOS_DIAS: ${SUSPENSAO_APOS_DIAS:-30}
+      IMPERSONACAO_MINUTOS: ${IMPERSONACAO_MINUTOS:-60}
+      SUPERADMIN_LOGIN: ${SUPERADMIN_LOGIN:-provedor}
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-provedor@portal.local}
+      SUPERADMIN_SENHA: ${SUPERADMIN_SENHA:-Provedor@123}
       RUN_MIGRATIONS:  "true"
       RUN_SEEDS:       "false"
       STORAGE_DRIVER:  local
@@ -87,6 +103,20 @@ services:
       JWT_SECRET:     dev_split_change_me_64_chars_minimum_portal_local_secret
       CLIENT_URL:     http://localhost:8080
       APP_URL:        http://localhost:3001
+      # ── Multi-tenant (ver comentario no servico "app") ──
+      APP_DOMAIN:     ${APP_DOMAIN:-localhost}
+      APP_PROTOCOL:   ${APP_PROTOCOL:-http}
+      APP_PORT_PUBLICA: ${APP_PORT_PUBLICA:-8080}
+      PROVIDER_SUBDOMAIN: ${PROVIDER_SUBDOMAIN:-admin,painel}
+      TENANT_HOSTS:    ${TENANT_HOSTS:-}
+      TENANT_FALLBACK: ${TENANT_FALLBACK:-true}
+      TENANT_DEFAULT_SLUG: ${TENANT_DEFAULT_SLUG:-principal}
+      TRIAL_DIAS:     ${TRIAL_DIAS:-14}
+      SUSPENSAO_APOS_DIAS: ${SUSPENSAO_APOS_DIAS:-30}
+      IMPERSONACAO_MINUTOS: ${IMPERSONACAO_MINUTOS:-60}
+      SUPERADMIN_LOGIN: ${SUPERADMIN_LOGIN:-provedor}
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-provedor@portal.local}
+      SUPERADMIN_SENHA: ${SUPERADMIN_SENHA:-Provedor@123}
       RUN_MIGRATIONS: "true"
       RUN_SEEDS:      "false"
       STORAGE_DRIVER: local

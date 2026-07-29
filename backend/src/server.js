@@ -38,11 +38,30 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'upload
 });
 
 const CLIENT_URL = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+const APP_DOMAIN = (process.env.APP_DOMAIN || 'localhost').toLowerCase();
+
+// Cada condomínio tem seu próprio subdomínio, então a origem permitida é
+// uma família de hosts (*.APP_DOMAIN), não uma URL fixa.
+const ORIGENS_FIXAS = new Set(
+  [CLIENT_URL, process.env.APP_URL, process.env.PROVIDER_URL].filter(Boolean)
+);
+
+function origemPermitida(origin) {
+  if (!origin) return true; // apps nativos, curl, same-origin
+  if (ORIGENS_FIXAS.has(origin)) return true;
+  let host;
+  try { host = new URL(origin).hostname.toLowerCase(); } catch { return false; }
+  if (host === APP_DOMAIN || host.endsWith(`.${APP_DOMAIN}`)) return true;
+  if (process.env.NODE_ENV !== 'production' && /(^|\.)localhost$|^127\.0\.0\.1$/.test(host)) return true;
+  return false;
+}
+
 app.use(cors({
-  origin: CLIENT_URL,
+  origin: (origin, callback) => callback(origemPermitida(origin) ? null : new Error('Origem não permitida.'), origemPermitida(origin)),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Condominio'],
+  exposedHeaders: ['X-Condominio', 'X-Request-Id'],
 }));
 
 const storageUrls = [
@@ -102,11 +121,14 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true }));
-app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }));
-app.use('/api/auth/verify-otp', rateLimit({ windowMs: 15 * 60 * 1000, max: 30 }));
-app.use('/api/auth/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 10 }));
-app.use('/api/comprovacoes', rateLimit({ windowMs: 60 * 1000, max: 30 }));
+// Limites por condomínio + IP: o excesso de um cliente não trava os outros.
+const porTenant = (req) => `${req.hostname}|${req.ip}`;
+
+app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, keyGenerator: porTenant }));
+app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, keyGenerator: porTenant }));
+app.use('/api/auth/verify-otp', rateLimit({ windowMs: 15 * 60 * 1000, max: 30, keyGenerator: porTenant }));
+app.use('/api/auth/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 10, keyGenerator: porTenant }));
+app.use('/api/comprovacoes', rateLimit({ windowMs: 60 * 1000, max: 30, keyGenerator: porTenant }));
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false }));
@@ -150,6 +172,12 @@ function wrapAsyncHandlers(router) {
   return router;
 }
 
+// Resolve o condomínio pelo subdomínio antes de qualquer rota de API.
+// Popula req.tenant / req.db / req.contrato — ou marca contexto do provedor.
+const { resolverTenant } = require('./middleware/tenant');
+app.use('/api', resolverTenant);
+
+app.use('/api/provedor', wrapAsyncHandlers(require('./routes/provedor')));
 app.use('/api/auth', wrapAsyncHandlers(require('./routes/auth')));
 app.use('/api/usuarios', wrapAsyncHandlers(require('./routes/usuarios')));
 app.use('/api', wrapAsyncHandlers(require('./routes/api')));
@@ -204,6 +232,10 @@ logger.info('Server boot configuration', {
   uploadDir: UPLOAD_DIR,
   logLevel: process.env.LOG_LEVEL || 'info',
   logFormat: process.env.LOG_FORMAT || 'text',
+  appDomain: APP_DOMAIN,
+  provedorSubdominios: process.env.PROVIDER_SUBDOMAIN || 'admin,painel',
+  tenantFallback: process.env.TENANT_FALLBACK
+    ?? String(process.env.NODE_ENV !== 'production'),
 });
 
 const server = app.listen(PORT, '0.0.0.0', () => {
@@ -223,7 +255,8 @@ server.on('error', (error) => {
 
 function shutdown(signal) {
   logger.info('Shutdown signal received', { signal });
-  server.close(() => {
+  server.close(async () => {
+    await require('./tenancy/registry').encerrarPools();
     logger.info('HTTP server closed', { signal });
     process.exit(0);
   });

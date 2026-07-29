@@ -12,6 +12,7 @@
     "migrate":     "node backend/scripts/migrate.js",
     "seed":        "node backend/scripts/seed.js",
     "db:setup":    "npm run migrate && npm run seed",
+    "provedor:criar": "node backend/scripts/criar-superadmin.js",
 
     "docker:dev":      "docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build",
     "docker:monolith": "docker compose --profile monolith up --build",

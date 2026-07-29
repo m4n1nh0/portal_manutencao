@@ -1,4 +1,6 @@
 // utils/api.js — Cliente HTTP centralizado
+import { getTenantSlug } from './tenant';
+
 const BASE = '/api';
 
 function getToken() { return localStorage.getItem('pm_token') || ''; }
@@ -12,10 +14,19 @@ function clearTokens() {
   localStorage.removeItem('pm_user');
 }
 
-async function request(method, path, body, isFormData = false) {
+function baseHeaders(isFormData) {
   const headers = {};
   if (!isFormData) headers['Content-Type'] = 'application/json';
   if (getToken())  headers['Authorization'] = 'Bearer ' + getToken();
+  // Em produção o condomínio vem do Host; o header só é considerado em dev,
+  // onde o proxy do Vite pode mascarar o subdomínio.
+  const slug = getTenantSlug();
+  if (slug) headers['X-Condominio'] = slug;
+  return headers;
+}
+
+async function request(method, path, body, isFormData = false) {
+  const headers = baseHeaders(isFormData);
 
   const opts = { method, headers };
   if (body) opts.body = isFormData ? body : JSON.stringify(body);
@@ -28,7 +39,7 @@ async function request(method, path, body, isFormData = false) {
     if (refresh) {
       const rRes = await fetch(BASE + '/auth/refresh', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: baseHeaders(false),
         body: JSON.stringify({ refreshToken: refresh }),
       });
       if (rRes.ok) {
@@ -45,7 +56,13 @@ async function request(method, path, body, isFormData = false) {
   }
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.erro || `Erro ${res.status}`);
+  if (!res.ok) {
+    const erro = new Error(data.erro || `Erro ${res.status}`);
+    erro.status = res.status;
+    erro.codigo = data.codigo || null;   // CONTRATO_BLOQUEADO, LIMITE_PLANO, ...
+    erro.detalhes = data;
+    throw erro;
+  }
   return data;
 }
 
@@ -130,6 +147,38 @@ const api = {
   // Observações
   criarObs: (o)  => request('POST', '/observacoes', o),
   listarObs: ()  => request('GET',  '/observacoes'),
+
+  // ── Contexto do subdomínio (público, usado na tela de login) ──
+  contexto: () => request('GET', '/auth/contexto'),
+
+  // ── Portal do provedor (superadmin) ──────────────────────────
+  provedor: {
+    dashboard:      ()            => request('GET',  '/provedor/dashboard'),
+
+    condominios:    (params={})   => request('GET',  '/provedor/condominios?' + new URLSearchParams(params)),
+    condominio:     (id)          => request('GET',  `/provedor/condominios/${id}`),
+    criarCondominio:(c)           => request('POST', '/provedor/condominios', c),
+    editarCondominio:(id, c)      => request('PUT',  `/provedor/condominios/${id}`, c),
+    statusCondominio:(id, status, motivo) => request('PATCH', `/provedor/condominios/${id}/status`, { status, motivo }),
+    arquivarCondominio:(id)       => request('DELETE', `/provedor/condominios/${id}`),
+    excluirCondominio:(id, slug)  => request('DELETE', `/provedor/condominios/${id}?definitivo=true&confirmacao=${encodeURIComponent(slug)}`),
+    slugDisponivel: (slug)        => request('GET',  '/provedor/slug-disponivel?slug=' + encodeURIComponent(slug)),
+    provisionar:    (id, opcoes)  => request('POST', `/provedor/condominios/${id}/provisionar`, opcoes),
+    criarAdmin:     (id, admin)   => request('POST', `/provedor/condominios/${id}/administrador`, admin),
+    impersonar:     (id)          => request('POST', `/provedor/condominios/${id}/impersonar`),
+
+    planos:         ()            => request('GET',  '/provedor/planos'),
+    criarPlano:     (p)           => request('POST', '/provedor/planos', p),
+    editarPlano:    (id, p)       => request('PUT',  `/provedor/planos/${id}`, p),
+    excluirPlano:   (id)          => request('DELETE', `/provedor/planos/${id}`),
+
+    faturas:        (params={})   => request('GET',  '/provedor/faturas?' + new URLSearchParams(params)),
+    criarFatura:    (id, f)       => request('POST', `/provedor/condominios/${id}/faturas`, f),
+    pagarFatura:    (id, dados)   => request('PATCH', `/provedor/faturas/${id}/pagar`, dados || {}),
+    cancelarFatura: (id, obs)     => request('PATCH', `/provedor/faturas/${id}/cancelar`, { observacao: obs }),
+    gerarFaturas:   (competencia) => request('POST', '/provedor/faturamento/gerar', { competencia }),
+    atualizarInadimplencia: ()    => request('POST', '/provedor/faturamento/atualizar'),
+  },
 
   setTokens, clearTokens, getToken,
 };

@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getRoleInfo } from '../utils/auth';
+import { urlDoProvedor } from '../utils/tenant';
 import ThemeToggle from './ThemeToggle';
 
 const PAGES = [
@@ -39,7 +40,11 @@ export default function Layout({ children, title, badges={} }) {
 
   const perfil = user?.perfil || 'morador';
   const role = getRoleInfo(perfil);
-  const pages = PAGES.filter(p => p.roles.includes(perfil));
+  // O provedor, quando entra num condomínio para dar suporte, enxerga tudo
+  // menos a área exclusiva de morador.
+  const pages = PAGES.filter(p => perfil === 'superadmin' ? p.id !== 'morador' : p.roles.includes(perfil));
+  const condominio = user?.condominio || null;
+  const contrato = user?.contrato || null;
   const bnIds = perfil === 'morador' ? BOTTOM_NAV.morador : BOTTOM_NAV.default;
   const bnPages = pages.filter(p => bnIds.includes(p.id));
   const roleVars = {
@@ -89,8 +94,8 @@ export default function Layout({ children, title, badges={} }) {
         <div className="sidebar-header">
           <div className="sidebar-logo-icon">PM</div>
           <div className="brand-copy">
-            <div className="sidebar-title">Portal Manutencao</div>
-            <div className="sidebar-sub">Operacao condominial</div>
+            <div className="sidebar-title">{condominio?.nome || 'Portal Manutencao'}</div>
+            <div className="sidebar-sub">{condominio ? 'Portal de Manutencao' : 'Operacao condominial'}</div>
           </div>
           <button className="sidebar-close" onClick={() => setSidebar(false)} aria-label="Fechar menu">x</button>
         </div>
@@ -142,6 +147,7 @@ export default function Layout({ children, title, badges={} }) {
         </header>
 
         <main className="content">
+          <ContractBanner perfil={perfil} contrato={contrato} condominio={condominio}/>
           {children}
         </main>
       </div>
@@ -162,6 +168,60 @@ export default function Layout({ children, title, badges={} }) {
           <span className="bn-label">Menu</span>
         </button>
       </nav>
+    </div>
+  );
+}
+
+/**
+ * Faixa de aviso no topo do conteudo:
+ *  - suporte do provedor dentro do condominio do cliente
+ *  - periodo de avaliacao acabando
+ *  - portal em modo somente leitura por inadimplencia
+ */
+function ContractBanner({ perfil, contrato, condominio }) {
+  const avisos = [];
+
+  if (perfil === 'superadmin' && condominio) {
+    avisos.push({
+      tom: 'suporte',
+      cor: '#0f766e',
+      texto: `Acesso de suporte ao condomínio ${condominio.nome}. Tudo o que você fizer aqui fica registrado na auditoria.`,
+      acao: { label: 'Voltar ao portal do provedor', href: urlDoProvedor() },
+    });
+  }
+
+  if (contrato?.estado === 'trial' && contrato.diasRestantes != null) {
+    avisos.push({
+      tom: 'trial',
+      cor: '#b45309',
+      texto: contrato.diasRestantes >= 0
+        ? `Período de avaliação: ${contrato.diasRestantes} dia(s) restante(s).`
+        : 'Período de avaliação encerrado.',
+    });
+  }
+
+  if (contrato?.somenteLeitura) {
+    avisos.push({ tom: 'bloqueio', cor: '#b91c1c', texto: contrato.mensagem });
+  }
+
+  if (!avisos.length) return null;
+
+  return (
+    <div style={{ display:'grid', gap:'8px', marginBottom:'16px' }}>
+      {avisos.map((aviso) => (
+        <div key={aviso.tom} style={{
+          display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap',
+          padding:'10px 14px', borderRadius:'10px', fontSize:'13px', fontWeight:500,
+          color:aviso.cor, background:`${aviso.cor}14`, border:`1px solid ${aviso.cor}44`,
+        }}>
+          <span style={{flex:1,minWidth:'200px'}}>{aviso.texto}</span>
+          {aviso.acao && (
+            <a href={aviso.acao.href} style={{color:aviso.cor,fontWeight:600,textDecoration:'underline'}}>
+              {aviso.acao.label}
+            </a>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

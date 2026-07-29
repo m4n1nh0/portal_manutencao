@@ -88,10 +88,75 @@ VITE_API_URL=https://sua-api.up.railway.app/api
    RUN_MIGRATIONS=true
    RUN_SEEDS=false
    NODE_ENV=production
+
+   # ── Multi-tenant: OBRIGATÓRIO, ver secao abaixo ──
+   TENANT_FALLBACK=false
+   TENANT_HOSTS=seu-monolito.up.railway.app=principal
    ```
 5. O Railway detecta `railway.json` e usa o `Dockerfile` da raiz.
 6. Se voce realmente quiser criar os usuarios de exemplo no primeiro deploy,
    defina `RUN_SEEDS=true` e `ALLOW_DEV_SEEDS=true`, depois volte ambos para `false`.
+
+## Multi-tenant no Railway
+
+A migration de multi-tenancy roda sozinha (`RUN_MIGRATIONS=true`) e converte
+uma base existente sem perder dados. Mas **duas configuracoes sao obrigatorias
+ou o deploy quebra**.
+
+### 1. Identificacao do condominio pelo host
+
+O backend descobre o condominio pelo header `Host`. Um dominio do Railway
+(`seu-app.up.railway.app`) nao segue o padrao `<slug>.<APP_DOMAIN>`, entao
+precisa ser mapeado explicitamente:
+
+```env
+TENANT_HOSTS=seu-app.up.railway.app=principal
+TENANT_FALLBACK=false
+```
+
+Sem isso o host cai como "nao reconhecido" e abre o portal do provedor em vez
+do portal do condominio (o log avisa, com a dica de configuracao).
+
+**Quando tiver dominio proprio com wildcard**, troque para:
+
+```env
+APP_DOMAIN=seudominio.com.br
+TENANT_FALLBACK=false
+# TENANT_HOSTS deixa de ser necessario
+```
+
+Configure no Railway o dominio `*.seudominio.com.br` apontando para o servico.
+Cada cliente novo passa a funcionar sem mexer no DNS.
+
+Os dois modos convivem: `TENANT_HOSTS` tem prioridade e serve tambem para
+dominio proprio de cliente (white label), por exemplo
+`TENANT_HOSTS=portaldojardins.com.br=jardins`.
+
+### 2. Conta do provedor
+
+Os seeds ficam desligados em producao, entao **nao existe superadmin depois do
+deploy** — ninguem consegue entrar no portal comercial. Crie pelo shell do
+Railway:
+
+```bash
+npm run provedor:criar -- --login provedor --email voce@seudominio.com.br --senha 'SuaSenha@123'
+```
+
+O script roda em qualquer ambiente, recusa senha fraca e e idempotente
+(`--resetar-senha` troca a senha de uma conta existente).
+
+### Ordem recomendada no primeiro deploy
+
+1. Defina as variaveis (incluindo `TENANT_HOSTS` e `TENANT_FALLBACK=false`).
+2. Faca o deploy — as migrations rodam e criam o "Condominio Principal",
+   movendo os dados existentes para ele.
+3. Crie a conta do provedor pelo shell.
+4. Entre no portal do provedor e ajuste nome/slug do condominio principal.
+5. Cadastre os demais clientes pela tela "Novo condominio".
+
+> A migration nao pode violar as novas chaves unicas: `login` e `email` ja
+> eram unicos globalmente, e passam a ser unicos por condominio — restricao
+> mais fraca. Ainda assim, faca backup antes (`mysqldump`).
 
 ## Migrations e seeds
 
