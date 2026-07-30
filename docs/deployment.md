@@ -117,6 +117,29 @@ TENANT_FALLBACK=false
 Sem isso o host cai como "nao reconhecido" e abre o portal do provedor em vez
 do portal do condominio (o log avisa, com a dica de configuracao).
 
+> **O dominio `*.up.railway.app` nao serve para subdominio por condominio.**
+> O certificado do Railway cobre o host exato do servico; `<slug>.seu-app.up.railway.app`
+> seria um wildcard aninhado sob um dominio que nao e seu, e o navegador barra
+> com `ERR_CERT_COMMON_NAME_INVALID` antes de chegar na aplicacao. Wildcard so
+> existe em dominio proprio adicionado como custom domain.
+
+### Um host so: alternando entre os dois portais
+
+Com um unico host, ele serve o portal do condominio **ou** o do provedor.
+Enquanto nao houver dominio proprio, alterne a variavel conforme a tarefa
+(cada troca reinicia o servico):
+
+```env
+# rotina: usar o portal do condominio
+TENANT_HOSTS=seu-app.up.railway.app=principal
+
+# eventual: cadastrar/gerenciar condominios, planos e faturas
+TENANT_HOSTS=seu-app.up.railway.app=@provedor
+```
+
+Solucao temporaria: nao serve para uso real, porque nenhum cliente pode estar
+usando o portal enquanto voce esta no modo provedor.
+
 **Quando tiver dominio proprio com wildcard**, troque para:
 
 ```env
